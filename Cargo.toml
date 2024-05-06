@@ -1,0 +1,19 @@
+[package]
+name = "wallet-sdk"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+alloy = { git = "https://github.com/alloy-rs/alloy", features = [
+    "signers",
+    "signer-wallet",
+    "signer-keystore",
+    "signer-mnemonic",
+] }
+rand = "0.8.5"
+
+tiny-bip39 = "1"
+thiserror = "1"
+hdwallet = "0.4.1"
+bitcoin = "0.32.0"
