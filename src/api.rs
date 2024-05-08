@@ -1,4 +1,3 @@
-use alloy::signers::wallet::{coins_bip39::English, MnemonicBuilder, Wallet};
 use bip39::{Mnemonic, Seed};
 use hdwallet::ExtendedPrivKey;
 use secp256k1::Secp256k1;
@@ -8,9 +7,9 @@ const RSA_PRIVATE_KEY: &str = "";
 pub struct Keystone {}
 
 impl Keystone {
-    pub fn gen_phrase() -> String {
+    pub fn gen_phrase(lang: bip39::Language) -> String {
         let w24 = bip39::MnemonicType::Words24;
-        let mnemonic = Mnemonic::new(w24, bip39::Language::English);
+        let mnemonic = Mnemonic::new(w24, lang);
         mnemonic.phrase().to_string()
     }
 
@@ -82,4 +81,21 @@ impl Keystone {
     // pub fn get_private(&self) -> Result<Private, crate::Error> {}
 }
 
-pub struct Private {}
+#[cfg(test)]
+mod test {
+    use super::Keystone;
+
+    #[test]
+    fn test_gen_phrase() {
+        let phrase = Keystone::gen_phrase(bip39::Language::English);
+        println!("phrase: {}", phrase);
+    }
+
+    #[test]
+    fn test_create() {
+        let phrase = Keystone::gen_phrase(bip39::Language::English);
+        let salt = "Salt";
+        let res = Keystone::create(&phrase, bip39::Language::English, salt);
+        println!("res: {:#?}", res);
+    }
+}
