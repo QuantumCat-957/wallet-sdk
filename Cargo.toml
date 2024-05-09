@@ -6,6 +6,11 @@ edition = "2021"
 [dependencies]
 anyhow = "1"
 alloy = { git = "https://github.com/alloy-rs/alloy", features = [
+    "providers",
+    "provider-http",
+    "rpc-types-eth",
+    "node-bindings",
+    "network",
     "signers",
     "signer-wallet",
     "signer-keystore",
@@ -13,10 +18,13 @@ alloy = { git = "https://github.com/alloy-rs/alloy", features = [
 ] }
 rand = "0.8.5"
 
-tiny-bip39 = "1"
 thiserror = "1"
+secp256k1 = { version = "0.28", features = ["rand"] }
+base64 = "0.22.1"
+coins-bip39 = "0.8.7"
+coins-bip32 = "0.8.7"
+tempfile = "3.10.1"
 hdwallet = "0.4.1"
 bitcoin = "0.32.0"
-secp256k1 = {version = "0.28"}
-rsa = "0.4.0"
-base64 = "0.22.1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+url = "2.5.0"
