@@ -98,12 +98,12 @@ impl Keystore {
     }
 
     // 传入助记词、盐、chain_code，由根私钥派生出子私钥，创建子Keystore，并生成keystore文件
-    pub fn derive_child_with_phrase_and_save<W: coins_bip39::Wordlist>(
+    pub fn derive_child_with_phrase_and_salt_save<W: coins_bip39::Wordlist>(
         phrase: &str,
         salt: &str,
-        password: &str,
         chain: &str,
         path: &str,
+        password: &str,
     ) -> Result<Self, anyhow::Error> {
         let mut rng = rand::thread_rng();
         let mnemonic = Self::phrase_to_mnemonic::<W>(phrase)?;
@@ -126,7 +126,8 @@ impl Keystore {
         Ok(Self { wallet })
     }
 
-    pub fn derive_child_with_phrase_no_save<W: coins_bip39::Wordlist>(
+    // 传入助记词、盐、派生路径，由根私钥派生出子私钥，创建子Keystore，不生成keystore文件
+    pub fn derive_child_with_phrase_and_salt_no_save<W: coins_bip39::Wordlist>(
         phrase: &str,
         salt: &str,
         chain: &str,
@@ -134,7 +135,26 @@ impl Keystore {
         let wallet = MnemonicBuilder::<W>::default()
             .phrase(phrase)
             .derivation_path(chain)?
-            // .index(index)
+            // Use this if your mnemonic is encrypted
+            .password(salt)
+            .build()?;
+
+        let res = Self { wallet };
+        let key = res.clone().get_private()?;
+        println!("key: {key}");
+        Ok(res)
+    }
+
+    // 传入助记词、盐、派生路径索引值，由根私钥派生出子私钥，创建子Keystore，不生成keystore文件
+    // 派生路径是使用以太坊中使用的默认派生路径前缀计算的，即"m/44'/60'/0'/0/{index}"
+    pub fn derive_child_with_phrase_and_index_no_save<W: coins_bip39::Wordlist>(
+        phrase: &str,
+        salt: &str,
+        index: u32,
+    ) -> Result<Self, anyhow::Error> {
+        let wallet = MnemonicBuilder::<W>::default()
+            .phrase(phrase)
+            .index(index)?
             // Use this if your mnemonic is encrypted
             .password(salt)
             .build()?;
@@ -168,7 +188,7 @@ impl Keystore {
             .signer()
             .to_bytes()
             .iter()
-            .map(|&i| format!("{:X}", i))
+            .map(|&i| format!("{:x}", i))
             .collect::<Vec<String>>()
             .join("");
 
@@ -343,8 +363,8 @@ mod test {
         // let phrase = "slam orient base razor trumpet swift second peasant amateur tape sweet enjoy";
         let phrase = "army van defense carry jealous true garbage claim echo media make crunch";
         let chain = "m/44'/60'/0'/0/1";
-        let _res = Keystore::derive_child_with_phrase_and_save::<coins_bip39::English>(
-            phrase, "", "test", chain, "",
+        let _res = Keystore::derive_child_with_phrase_and_salt_save::<coins_bip39::English>(
+            phrase, "", chain, "", "test",
         )
         .unwrap();
     }
@@ -354,9 +374,23 @@ mod test {
         // let phrase = "slam orient base razor trumpet swift second peasant amateur tape sweet enjoy";
         let phrase = "army van defense carry jealous true garbage claim echo media make crunch";
         let chain = "m/44'/60'/0'/0/1";
-        let _res =
-            Keystore::derive_child_with_phrase_no_save::<coins_bip39::English>(phrase, "", chain)
+        let _res = Keystore::derive_child_with_phrase_and_salt_no_save::<coins_bip39::English>(
+            phrase, "", chain,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn test_derive_child_with_phrase_and_index_no_save() {
+        // let phrase = "slam orient base razor trumpet swift second peasant amateur tape sweet enjoy";
+        let phrase = "army van defense carry jealous true garbage claim echo media make crunch";
+        for i in 0..5 {
+            let _res =
+                Keystore::derive_child_with_phrase_and_index_no_save::<coins_bip39::English>(
+                    phrase, "", i,
+                )
                 .unwrap();
+        }
     }
 
     #[test]
