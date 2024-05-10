@@ -34,9 +34,8 @@ impl Keystore {
     pub fn create_root_keystore_with_path_phrase<W: coins_bip39::Wordlist>(
         phrase: &str,
         salt: &str,
-        password: &str,
-        // chain: &str,
         path: &str,
+        password: &str,
     ) -> Result<Self, anyhow::Error> {
         let mut rng = rand::thread_rng();
         let mnemonic = Self::phrase_to_mnemonic::<W>(phrase)?;
@@ -196,29 +195,20 @@ impl Keystore {
         Ok(private_key)
     }
 
-    // 打开keystore
-    pub fn open(password: String, path: &str) -> Result<Self, crate::Error> {
+    // 输入密码打开钱包
+    fn open_with_password(password: &str, path: &str) -> Result<Self, crate::Error> {
         let recovered_wallet = Wallet::decrypt_keystore(path, password)?;
+
         Ok(Self {
             wallet: recovered_wallet,
         })
     }
 
-    // pub fn open_with_key(priv_key: &str, password: String) -> Result<String, anyhow::Error> {
-    //     let der_encoded = RSA_PRIVATE_KEY
-    //         .lines()
-    //         .filter(|line| !line.starts_with("-"))
-    //         .fold(String::new(), |mut data, line| {
-    //             data.push_str(&line);
-    //             data
-    //         });
-    //     let der_bytes = base64::decode(&der_encoded).expect("failed to decode base64 content");
-
-    //     let decrypted_str = String::from_utf8(decrypted_data)?;
-    //     Ok(decrypted_str)
-    // }
-
-    pub async fn sign_message(&self, message: &str) -> Result<(), anyhow::Error> {
+    // 签名
+    pub async fn sign_message(
+        &self,
+        message: &str,
+    ) -> Result<alloy::primitives::Signature, anyhow::Error> {
         use alloy::signers::Signer;
         let signer = &self.wallet;
 
@@ -231,20 +221,23 @@ impl Keystore {
         );
         println!(
             "Signature recovered address: {:?}",
-            signature.recover_address_from_msg(&message[..])?
+            signature.recover_address_from_msg(message)?
         );
 
-        Ok(())
+        Ok(signature)
     }
 
+    // 传入密码、keystore文件路径，交易
     pub async fn transaction(
-        self,
+        password: &str,
+        path: &str,
         rpc_url: url::Url,
         to: &str,
         value: usize,
     ) -> Result<(), anyhow::Error> {
+        let wallet = Self::open_with_password(password, path)?;
         let to = to.parse::<Address>()?;
-        let signer = self.wallet;
+        let signer = wallet.wallet;
 
         let address = signer.address();
         // Create a provider with the signer.
@@ -262,6 +255,20 @@ impl Keystore {
         let receipt = provider.send_transaction(tx).await?.get_receipt().await?;
 
         println!("Send transaction: {:?}", receipt.transaction_hash);
+
+        Ok(())
+    }
+
+    // 检查本地根钱包的地址和所选的地址是否一致
+    fn _check_root_wallet(self, address: &str) -> Result<(), anyhow::Error> {
+        let address = address.parse::<Address>()?;
+        let local_address = self.wallet.address();
+
+        if address.ne(&local_address) {
+            return Err(anyhow!(
+                "The selected address is inconsistent with the root address of the local store"
+            ));
+        }
 
         Ok(())
     }
@@ -353,7 +360,7 @@ mod test {
         let phrase = "army van defense carry jealous true garbage claim echo media make crunch";
         // let chain = "m/44'/60'/0'/0/0";
         let _res = Keystore::create_root_keystore_with_path_phrase::<coins_bip39::English>(
-            phrase, "", "test", "",
+            phrase, "", "", "test",
         )
         .unwrap();
     }
@@ -431,17 +438,31 @@ mod test {
     }
 
     #[tokio::test]
+    async fn add_money() {}
+
+    #[tokio::test]
     async fn test_transaction() {
-        let signer = alloy::signers::wallet::LocalWallet::random();
-        let wallet = Keystore { wallet: signer };
         let anvil = alloy::node_bindings::Anvil::new()
             .block_time(1)
             .try_spawn()
             .unwrap();
+
         let rpc_url = anvil.endpoint().parse().unwrap();
         let to = "d8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
         let value = 100;
-        let res = wallet.transaction(rpc_url, to, value).await.unwrap();
+        let keystore_file_path =
+            std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+        println!("path: {:?}", keystore_file_path);
+        let keystore_file_path = keystore_file_path
+            // .join("6dab0ec3-ce31-4d24-ac4a-d4109446eca4")
+            .join("alice.json")
+            .to_string_lossy()
+            .to_string();
+
+        println!("keystore_file_path: {:?}", keystore_file_path);
+        let res = Keystore::transaction("test", &keystore_file_path, rpc_url, to, value)
+            .await
+            .unwrap();
         println!("private_key: {:#?}", res);
     }
 
