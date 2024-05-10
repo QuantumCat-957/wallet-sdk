@@ -6,9 +6,9 @@ use alloy::{
 };
 use anyhow::anyhow;
 use coins_bip39::Mnemonic;
-use hdwallet::traits::Serialize;
 use secp256k1::Secp256k1;
 
+#[derive(Debug, Clone)]
 pub struct Keystore {
     wallet: Wallet<alloy::signers::k256::ecdsa::SigningKey>,
 }
@@ -20,41 +20,45 @@ impl Keystore {
         mnemonic.to_phrase()
     }
 
-    // 创建Keystore，密钥随机生成，并且保存到文件
-    pub fn create_keystore_with_path(path: &str, password: &str) -> Result<Self, anyhow::Error> {
+    // 创建根Keystore，密钥随机生成，并且保存到文件
+    pub fn create_root_keystore_with_path(
+        path: &str,
+        password: &str,
+    ) -> Result<Self, anyhow::Error> {
         let mut rng = rand::thread_rng();
         let (wallet, _) = Wallet::new_keystore(path, &mut rng, password, None)?;
         Ok(Self { wallet })
     }
 
-    // 传入助记词、盐，生成密钥，创建Keystore，并且保存到文件
-    pub fn create_keystore_with_path_phrase<W: coins_bip39::Wordlist>(
+    // 传入助记词、盐，生成密钥，创建根Keystore，并且保存到文件
+    pub fn create_root_keystore_with_path_phrase<W: coins_bip39::Wordlist>(
         phrase: &str,
         salt: &str,
         password: &str,
+        // chain: &str,
         path: &str,
     ) -> Result<Self, anyhow::Error> {
         let mut rng = rand::thread_rng();
         let mnemonic = Self::phrase_to_mnemonic::<W>(phrase)?;
 
-        let seed = mnemonic.to_seed(Some(salt))?;
-        let seed_str = alloy::hex::encode(seed);
-        println!("种子：{seed_str}");
-
-        let root_key = hdwallet::ExtendedPrivKey::with_seed(&seed)?;
-        println!(
-            "Private key 0x{}\n",
-            alloy::hex::encode(root_key.serialize())
-        );
+        // let seed = mnemonic.to_seed(Some(salt))?;
+        // let seed_str = alloy::hex::encode(seed);
+        // println!("种子：{seed_str}");
+        // let chain = "m/44'/60'/0'/0/0";
 
         let master_key = mnemonic.master_key(Some(salt))?;
-        let signingkey: &coins_bip32::ecdsa::SigningKey = master_key.as_ref();
-        let key = signingkey.to_bytes();
-        // let key: &coins_bip32::prelude::SigningKey = master_key.as_ref();
-        let private_key = alloy::hex::encode(key);
+        // let master_key = master_key.derive_path(chain)?;
 
-        println!("master key: {:#?}", master_key);
-        println!("十六进制主私钥: {:#?}", private_key);
+        // let master_key = mnemonic.derive_key(chain, Some(salt))?;
+        let signingkey: &coins_bip32::ecdsa::SigningKey = master_key.as_ref();
+        let private_key = signingkey.to_bytes();
+
+        // let key: &coins_bip32::prelude::SigningKey = master_key.as_ref();
+        // let private_key = alloy::hex::encode(key);
+
+        // println!("master key: {:#?}", master_key);
+
+        // println!("十六进制主私钥: {:#?}", private_key);
         // let signer = alloy::signers::k256::schnorr::SigningKey::from_bytes(&key.to_bytes())?;
 
         // let address = secret_key_to_address(&signer);
@@ -68,11 +72,14 @@ impl Keystore {
             None,
         )?;
 
+        let address = wallet.address();
+        println!("地址：{}", address);
+
         Ok(Self { wallet })
     }
 
-    // 传入助记词、盐，生成密钥，创建Keystore，但不生成keystore文件
-    pub fn create_keystore_with_phrase_no_path<W: coins_bip39::Wordlist>(
+    // 传入助记词、盐，生成密钥，创建根Keystore，但不生成keystore文件
+    pub fn create_root_keystore_with_phrase_no_path<W: coins_bip39::Wordlist>(
         phrase: &str,
         salt: &str,
     ) -> Result<Self, anyhow::Error> {
@@ -87,19 +94,55 @@ impl Keystore {
             .password(salt)
             .build()?;
 
-        // 使用种子生成主私钥
-        // let master_key = ExtendedPrivKey::with_seed(seed.as_bytes())?;
-
-        // let dir = "./";
-        // let mut rng = rand::thread_rng();
-        // 将主私钥转换为十六进制字符串
-        // let private_key_hex = master_key.private_key;
-        // std::fs::File::create(dir);
-        // let (wallet, file_path) =
-        //     Wallet::encrypt_keystore(&dir, &mut rng, private_key, password, None)?;
-
-        // wallet
         Ok(Self { wallet })
+    }
+
+    // 传入助记词、盐、chain_code，由根私钥派生出子私钥，创建子Keystore，并生成keystore文件
+    pub fn derive_child_with_phrase_and_save<W: coins_bip39::Wordlist>(
+        phrase: &str,
+        salt: &str,
+        password: &str,
+        chain: &str,
+        path: &str,
+    ) -> Result<Self, anyhow::Error> {
+        let mut rng = rand::thread_rng();
+        let mnemonic = Self::phrase_to_mnemonic::<W>(phrase)?;
+        // let master_key = mnemonic.derive_key(chain, Some(salt))?;
+        let derive_key = mnemonic.derive_key(chain, Some(salt))?;
+
+        let signingkey: &coins_bip32::ecdsa::SigningKey = derive_key.as_ref();
+        let private_key = signingkey.to_bytes();
+
+        let key = alloy::hex::encode(private_key);
+        println!("十六进制派生私钥: {:#?}", key);
+
+        let (wallet, _) = alloy::signers::wallet::Wallet::encrypt_keystore(
+            path,
+            &mut rng,
+            private_key,
+            password,
+            None,
+        )?;
+        Ok(Self { wallet })
+    }
+
+    pub fn derive_child_with_phrase_no_save<W: coins_bip39::Wordlist>(
+        phrase: &str,
+        salt: &str,
+        chain: &str,
+    ) -> Result<Self, anyhow::Error> {
+        let wallet = MnemonicBuilder::<W>::default()
+            .phrase(phrase)
+            .derivation_path(chain)?
+            // .index(index)
+            // Use this if your mnemonic is encrypted
+            .password(salt)
+            .build()?;
+
+        let res = Self { wallet };
+        let key = res.clone().get_private()?;
+        println!("key: {key}");
+        Ok(res)
     }
 
     // 助记词->Mnemonic
@@ -118,6 +161,7 @@ impl Keystore {
     }
 
     // 获取密钥
+    // TODO: 不用self
     pub fn get_private(self) -> Result<String, crate::Error> {
         let private_key = self
             .wallet
@@ -218,6 +262,7 @@ mod test {
     use std::fs::read_to_string;
 
     use alloy::{hex, signers::wallet::Wallet};
+    use hdwallet::{traits::Serialize as _, KeyChain as _};
     use rand::thread_rng;
     use secp256k1::Secp256k1;
     use tempfile::tempdir;
@@ -233,11 +278,33 @@ mod test {
     #[test]
     fn test_create_keystore_with_phrase_no_path() {
         // coins_bip32
-        let phrase = "gravity machine north sort system female filter attitude volume fold club stay feature office ecology stable narrow fog";
-        let salt = "TREZOR";
-        let _res =
-            Keystore::create_keystore_with_phrase_no_path::<coins_bip39::English>(phrase, &salt)
-                .unwrap();
+        let phrase = "army van defense carry jealous true garbage claim echo media make crunch";
+        let salt = "";
+        let _res = Keystore::create_root_keystore_with_phrase_no_path::<coins_bip39::English>(
+            phrase, &salt,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn test_hdwallet_gen_extended_privkey() {
+        let phrase = "army van defense carry jealous true garbage claim echo media make crunch";
+        let mnemonic = Keystore::phrase_to_mnemonic::<coins_bip39::English>(phrase).unwrap();
+
+        let seed = mnemonic.to_seed(None).unwrap();
+
+        let root_key = hdwallet::ExtendedPrivKey::with_seed(&seed).unwrap();
+        let key_chain = hdwallet::DefaultKeyChain::new(root_key);
+        let (extended_key, _derivation) = key_chain
+            .derive_private_key(hdwallet::ChainPath::from("m/44'/60'/0'/0/0"))
+            .expect("fetch key");
+
+        // let hardened_key_index = hdwallet::KeyIndex::from_index(0).unwrap();
+        // let root_key = root_key.derive_private_key(hardened_key_index)?;
+        println!(
+            "Private key 0x{}\n",
+            alloy::hex::encode(extended_key.serialize())
+        );
     }
 
     // #[test]
@@ -261,12 +328,35 @@ mod test {
     // }
 
     #[test]
-    fn test_create_keystore_with_path_phrase() {
+    fn test_create_root_keystore_with_path_phrase() {
         // let phrase = "slam orient base razor trumpet swift second peasant amateur tape sweet enjoy";
-        let phrase = "gravity machine north sort system female filter attitude volume fold club stay feature office ecology stable narrow fog";
-        let _res = Keystore::create_keystore_with_path_phrase::<coins_bip39::English>(
-            phrase, "TREZOR", "password", "",
-        );
+        let phrase = "army van defense carry jealous true garbage claim echo media make crunch";
+        // let chain = "m/44'/60'/0'/0/0";
+        let _res = Keystore::create_root_keystore_with_path_phrase::<coins_bip39::English>(
+            phrase, "", "test", "",
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn test_derive_child_with_phrase_and_save() {
+        // let phrase = "slam orient base razor trumpet swift second peasant amateur tape sweet enjoy";
+        let phrase = "army van defense carry jealous true garbage claim echo media make crunch";
+        let chain = "m/44'/60'/0'/0/1";
+        let _res = Keystore::derive_child_with_phrase_and_save::<coins_bip39::English>(
+            phrase, "", "test", chain, "",
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn test_derive_child_with_phrase_no_save() {
+        // let phrase = "slam orient base razor trumpet swift second peasant amateur tape sweet enjoy";
+        let phrase = "army van defense carry jealous true garbage claim echo media make crunch";
+        let chain = "m/44'/60'/0'/0/1";
+        let _res =
+            Keystore::derive_child_with_phrase_no_save::<coins_bip39::English>(phrase, "", chain)
+                .unwrap();
     }
 
     #[test]
