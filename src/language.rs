@@ -2,8 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::keystore::Keystore;
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug)]
 pub enum Language {
     English,
     ChineseSimplified,
@@ -39,88 +38,104 @@ impl<W: coins_bip39::Wordlist + Clone> Word<W> {
 }
 
 impl Language {
-    pub fn to_word(self) -> std::ptr::NonNull<()> {
-        match self {
-            Language::English => unsafe {
-                std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
-                    coins_bip39::English,
-                >::new())))
-                .cast()
-            },
-            Language::ChineseSimplified => unsafe {
-                std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
-                    coins_bip39::ChineseSimplified,
-                >::new())))
-                .cast()
-            },
-            Language::ChineseTraditional => unsafe {
-                std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
-                    coins_bip39::ChineseTraditional,
-                >::new())))
-                .cast()
-            },
-            Language::Czech => unsafe {
-                std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(
-                    Word::<coins_bip39::Czech>::new(),
-                )))
-                .cast()
-            },
-            Language::French => unsafe {
-                std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(
-                    Word::<coins_bip39::French>::new(),
-                )))
-                .cast()
-            },
-            Language::Italian => unsafe {
-                std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
-                    coins_bip39::Italian,
-                >::new())))
-                .cast()
-            },
-            Language::Japanese => unsafe {
-                std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
-                    coins_bip39::Japanese,
-                >::new())))
-                .cast()
-            },
-            Language::Korean => unsafe {
-                std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(
-                    Word::<coins_bip39::Korean>::new(),
-                )))
-                .cast()
-            },
-            Language::Portuguese => unsafe {
-                std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
-                    coins_bip39::Portuguese,
-                >::new())))
-                .cast()
-            },
-            Language::Spanish => unsafe {
-                std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
-                    coins_bip39::Spanish,
-                >::new())))
-                .cast()
-            },
-        }
+    pub fn from_str(lang: &str) -> Result<Self, anyhow::Error> {
+        Ok(match lang {
+            "english" => Language::English,
+            "chinese_simplified" => Language::ChineseSimplified,
+            "chinese_traditional" => Language::ChineseTraditional,
+            "czech" => Language::Czech,
+            "french" => Language::French,
+            "italian" => Language::Italian,
+            "japanese" => Language::Japanese,
+            "korean" => Language::Korean,
+            "portuguese" => Language::Portuguese,
+            "spanish" => Language::Spanish,
+            _ => return Err(anyhow::anyhow!("Unknown lang")),
+        })
     }
+    // pub fn to_word(self) -> std::ptr::NonNull<()> {
+    //     match self {
+    //         Language::English => unsafe {
+    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
+    //                 coins_bip39::English,
+    //             >::new())))
+    //             .cast()
+    //         },
+    //         Language::ChineseSimplified => unsafe {
+    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
+    //                 coins_bip39::ChineseSimplified,
+    //             >::new())))
+    //             .cast()
+    //         },
+    //         Language::ChineseTraditional => unsafe {
+    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
+    //                 coins_bip39::ChineseTraditional,
+    //             >::new())))
+    //             .cast()
+    //         },
+    //         Language::Czech => unsafe {
+    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(
+    //                 Word::<coins_bip39::Czech>::new(),
+    //             )))
+    //             .cast()
+    //         },
+    //         Language::French => unsafe {
+    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(
+    //                 Word::<coins_bip39::French>::new(),
+    //             )))
+    //             .cast()
+    //         },
+    //         Language::Italian => unsafe {
+    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
+    //                 coins_bip39::Italian,
+    //             >::new())))
+    //             .cast()
+    //         },
+    //         Language::Japanese => unsafe {
+    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
+    //                 coins_bip39::Japanese,
+    //             >::new())))
+    //             .cast()
+    //         },
+    //         Language::Korean => unsafe {
+    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(
+    //                 Word::<coins_bip39::Korean>::new(),
+    //             )))
+    //             .cast()
+    //         },
+    //         Language::Portuguese => unsafe {
+    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
+    //                 coins_bip39::Portuguese,
+    //             >::new())))
+    //             .cast()
+    //         },
+    //         Language::Spanish => unsafe {
+    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
+    //                 coins_bip39::Spanish,
+    //             >::new())))
+    //             .cast()
+    //         },
+    //     }
+    // }
 }
 
-impl<W: coins_bip39::Wordlist + Clone> From<Language> for Word<W> {
-    fn from(value: Language) -> Self {
-        match value {
-            Language::English => Word::<W>::new(),
-            Language::ChineseSimplified => Word::<W>::new(),
-            Language::ChineseTraditional => Word::<W>::new(),
-            Language::Czech => Word::<W>::new(),
-            Language::French => Word::<W>::new(),
-            Language::Italian => Word::<W>::new(),
-            Language::Japanese => Word::<W>::new(),
-            Language::Korean => Word::<W>::new(),
-            Language::Portuguese => Word::<W>::new(),
-            Language::Spanish => Word::<W>::new(),
-        }
-    }
-}
+// impl<W: coins_bip39::Wordlist + Clone> From<Language> for Word<W> {
+//     fn from(value: Language) -> Self {
+//         match value {
+//             Language::English => Word::<W>::new(),
+//             Language::ChineseSimplified => Word::<W>::new(),
+//             Language::ChineseTraditional => Word::<W>::new(),
+//             Language::Czech => Word::<W>::new(),
+//             Language::French => Word::<W>::new(),
+//             Language::Italian => Word::<W>::new(),
+//             Language::Japanese => Word::<W>::new(),
+//             Language::Korean => Word::<W>::new(),
+//             Language::Portuguese => Word::<W>::new(),
+//             Language::Spanish => Word::<W>::new(),
+//             Language::Unknown => Word::<W>::new(),
+//         }
+//     }
+// }
 
 #[derive(Debug, Clone)]
 pub enum WordlistWrapper {
@@ -138,7 +153,7 @@ pub enum WordlistWrapper {
 
 impl WordlistWrapper {
     pub fn new(lang: &str) -> Result<WordlistWrapper, anyhow::Error> {
-        let language: crate::language::Language = serde_json::from_str(lang)?;
+        let language = Language::from_str(lang)?;
         Ok(language.to_wordlist_wrapper())
     }
 }
