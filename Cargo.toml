@@ -25,6 +25,7 @@ coins-bip39 = "0.8.7"
 coins-bip32 = "0.8.7"
 tempfile = "3.10.1"
 hdwallet = "0.4.1"
-bitcoin = "0.32.0"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 url = "2.5.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0.89"
