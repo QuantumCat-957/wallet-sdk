@@ -71,16 +71,25 @@ pub fn set_password(
     Ok(())
 }
 
-// /// 派生子密钥
-// pub fn derive(password: &str) -> Result<Address, anyhow::Error> {
-//     // 找到根keystore文件，根密钥只用来派生
-//     let root_path = "";
+/// 派生子密钥
+pub fn derive(password: &str) -> Result<Address, anyhow::Error> {
+    // 找到根keystore文件，根密钥只用来派生
+    let root_path = "";
+    let address = "";
+    let address = address.parse::<Address>()?;
 
-//     let wallet = Keystore::open_with_password(password, root_path)?;
+    let seed_wallet = Keystore::get_seed_keystore(address, root_path, password)?;
 
-//     let _res = Keystore::<coins_bip39::English>::new()
-//         .create_root_keystore_with_phrase_no_path(phrase, &salt)
-//         .unwrap();
+    let chain_code = "";
+    // 获取根seed
+    let seed_wallet = Keystore::derive_child_with_seed_and_chain_code_save(
+        seed_wallet.seed,
+        chain_code,
+        root_path,
+        password,
+    )?;
 
-//     Ok(())
-// }
+    let address = seed_wallet.address();
+
+    Ok(address)
+}

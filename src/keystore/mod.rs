@@ -8,6 +8,8 @@ use anyhow::anyhow;
 use coins_bip39::Mnemonic;
 use secp256k1::Secp256k1;
 
+use crate::wallet::SeedWallet;
+
 #[derive(Debug, Clone)]
 pub struct Keystore {
     wallet: Option<Wallet<alloy::signers::k256::ecdsa::SigningKey>>,
@@ -81,11 +83,11 @@ impl Keystore {
         password: &str,
     ) -> Result<Self, anyhow::Error> {
         let mut rng = rand::thread_rng();
-        let master_key = self.phrase_to_master_key(phrase, salt)?;
+        let (master_key, seed) = self.phrase_to_master_key(phrase, salt)?;
 
         // let seed = mnemonic.to_seed(Some(salt))?;
-        // let seed_str = alloy::hex::encode(seed);
-        // println!("种子：{seed_str}");
+        let seed_str = alloy::hex::encode(&seed);
+        println!("种子：{seed_str}");
         // let chain = "m/44'/60'/0'/0/0";
 
         // let master_key = master_key.derive_path(chain)?;
@@ -105,19 +107,37 @@ impl Keystore {
         // let address = secret_key_to_address(&signer);
         // Ok(Wallet::<SigningKey> { signer, address, chain_id: None })
 
+        let name = Self::from_signingkey_to_name(signingkey, "pk");
+
         let (wallet, _) = alloy::signers::wallet::Wallet::encrypt_keystore(
             path,
             &mut rng,
             private_key,
             password,
-            None,
+            Some(&name),
         )?;
-
         let address = wallet.address();
         println!("地址：{}", address);
 
+        Keystore::save_seed_keystore(address, seed.as_slice(), path, password)?;
+
         self.wallet = Some(wallet);
         Ok(self)
+    }
+
+    fn from_signingkey_to_name(
+        signingkey: &coins_bip32::ecdsa::SigningKey,
+        suffix: &str,
+    ) -> String {
+        let address = alloy::signers::utils::secret_key_to_address(signingkey);
+        println!("from_signingkey_to_name: {:#?}", address);
+        let name = format!("{}-{}", address, suffix);
+        name
+    }
+
+    fn from_address_to_name(address: Address, suffix: &str) -> String {
+        let name = format!("{}-{}", address, suffix);
+        name
     }
 
     // 设置密码
@@ -158,7 +178,31 @@ impl Keystore {
         Ok(self)
     }
 
-    // 传入助记词、盐、chain_code，由根私钥派生出子私钥，创建子Keystore，并生成keystore文件
+    pub fn save_seed_keystore(
+        address: Address,
+        seed: &[u8],
+        dir: &str,
+        password: &str,
+    ) -> Result<(), anyhow::Error> {
+        let mut rng = rand::thread_rng();
+        let name = Self::from_address_to_name(address, "seed");
+        // let path = dir.path().join(name);
+        crate::eth_keystore::encrypt_data(dir, &mut rng, seed, password, Some(&name))?;
+        Ok(())
+    }
+
+    pub fn get_seed_keystore(
+        address: Address,
+        dir: &str,
+        password: &str,
+    ) -> Result<SeedWallet, anyhow::Error> {
+        let name = Self::from_address_to_name(address, "seed");
+        let dir = std::path::Path::new(dir);
+        let path = dir.join(name);
+        let seed = crate::eth_keystore::decrypt_data(path, password)?;
+        Ok(SeedWallet::from_seed(seed)?)
+    }
+
     // pub fn derive_child_with_address_and_save(
     //     mut self,
     //     chain: &str,
@@ -192,20 +236,19 @@ impl Keystore {
     // }
 
     // 传入助记词、盐、chain_code，由根私钥派生出子私钥，创建子Keystore，并生成keystore文件
-    // pub fn derive_child_with_phrase_and_salt_save(
+    // pub fn derive_child_with_address_and_save(
     //     mut self,
-    //     phrase: &str,
-    //     salt: &str,
     //     chain: &str,
-    //     path: &str,
-    //     password: &str,
+    //     root_path: &str,
+    //     root_password: &str,
+    //     child_password: &str,
     // ) -> Result<Self, anyhow::Error> {
-    //     let mut rng = rand::thread_rng();
-    //     let master_key = self.phrase_to_master_key(phrase, salt)?;
-    //     let derive_key = mnemonic.derive_key(chain, Some(salt))?;
 
-    //     let mnemonic = Self::phrase_to_master_key(phrase, chain, Some(salt))?;
     //     // let master_key = mnemonic.derive_key(chain, Some(salt))?;
+    //     let root_wallet = Wallet::decrypt_keystore(root_path, root_password)?;
+
+    //     let root_signer = root_wallet.signer();
+    //     root_signer
 
     //     let signingkey: &coins_bip32::ecdsa::SigningKey = derive_key.as_ref();
     //     let private_key = signingkey.to_bytes();
@@ -224,6 +267,43 @@ impl Keystore {
     //     self.wallet = Some(wallet);
     //     Ok(self)
     // }
+
+    // 传入chain_code，由根私钥派生出子私钥，创建子Keystore，并生成keystore文件
+    pub fn derive_child_with_seed_and_chain_code_save(
+        // phrase: &str,
+        // salt: &str,
+        seed: Vec<u8>,
+        chain: &str,
+        path: &str,
+        password: &str,
+    ) -> Result<Wallet<alloy::signers::k256::ecdsa::SigningKey>, anyhow::Error> {
+        let seed_wallet = SeedWallet::from_seed(seed)?;
+        let derive_key = seed_wallet.derive_path(chain)?;
+
+        let mut rng = rand::thread_rng();
+        // let master_key = self.phrase_to_master_key(phrase, salt)?;
+        // let derive_key = mnemonic.derive_key(chain, Some(salt))?;
+
+        // let mnemonic = Self::phrase_to_master_key(phrase, chain, Some(salt))?;
+        // let master_key = mnemonic.derive_key(chain, Some(salt))?;
+
+        let signingkey: &coins_bip32::ecdsa::SigningKey = derive_key.as_ref();
+
+        let private_key = signingkey.to_bytes();
+
+        let key = alloy::hex::encode(private_key);
+        println!("十六进制派生私钥: {:#?}", key);
+
+        let (wallet, _) = alloy::signers::wallet::Wallet::encrypt_keystore(
+            path,
+            &mut rng,
+            private_key,
+            password,
+            None,
+        )?;
+
+        Ok(wallet)
+    }
 
     // 传入助记词、盐、派生路径，由根私钥派生出子私钥，创建子Keystore，不生成keystore文件
     pub fn derive_child_with_phrase_and_salt_no_save<W: coins_bip39::Wordlist>(
@@ -250,48 +330,59 @@ impl Keystore {
         &self,
         phrase: &str,
         password: &str,
-    ) -> Result<coins_bip32::xkeys::XPriv, anyhow::Error> {
+    ) -> Result<(coins_bip32::xkeys::XPriv, Vec<u8>), anyhow::Error> {
         Ok(match self._wordlist {
             crate::language::WordlistWrapper::English(_) => {
                 let mnemonic = Mnemonic::<coins_bip39::English>::new_from_phrase(phrase)?;
-                mnemonic.master_key(Some(password))?
+                let seed = mnemonic.to_seed(Some(password))?.to_vec();
+                // let seed = seed;
+                (mnemonic.master_key(Some(password))?, seed)
             }
             crate::language::WordlistWrapper::ChineseSimplified(_) => {
                 let mnemonic = Mnemonic::<coins_bip39::ChineseSimplified>::new_from_phrase(phrase)?;
-                mnemonic.master_key(Some(password))?
+                let seed = mnemonic.to_seed(Some(password))?.to_vec();
+                (mnemonic.master_key(Some(password))?, seed)
             }
             crate::language::WordlistWrapper::ChineseTraditional(_) => {
                 let mnemonic =
                     Mnemonic::<coins_bip39::ChineseTraditional>::new_from_phrase(phrase)?;
-                mnemonic.master_key(Some(password))?
+                let seed = mnemonic.to_seed(Some(password))?.to_vec();
+                (mnemonic.master_key(Some(password))?, seed)
             }
             crate::language::WordlistWrapper::Czech(_) => {
                 let mnemonic = Mnemonic::<coins_bip39::Czech>::new_from_phrase(phrase)?;
-                mnemonic.master_key(Some(password))?
+                let seed = mnemonic.to_seed(Some(password))?.to_vec();
+                (mnemonic.master_key(Some(password))?, seed)
             }
             crate::language::WordlistWrapper::French(_) => {
                 let mnemonic = Mnemonic::<coins_bip39::French>::new_from_phrase(phrase)?;
-                mnemonic.master_key(Some(password))?
+                let seed = mnemonic.to_seed(Some(password))?.to_vec();
+                (mnemonic.master_key(Some(password))?, seed)
             }
             crate::language::WordlistWrapper::Italian(_) => {
                 let mnemonic = Mnemonic::<coins_bip39::Italian>::new_from_phrase(phrase)?;
-                mnemonic.master_key(Some(password))?
+                let seed = mnemonic.to_seed(Some(password))?.to_vec();
+                (mnemonic.master_key(Some(password))?, seed)
             }
             crate::language::WordlistWrapper::Japanese(_) => {
                 let mnemonic = Mnemonic::<coins_bip39::Japanese>::new_from_phrase(phrase)?;
-                mnemonic.master_key(Some(password))?
+                let seed = mnemonic.to_seed(Some(password))?.to_vec();
+                (mnemonic.master_key(Some(password))?, seed)
             }
             crate::language::WordlistWrapper::Korean(_) => {
                 let mnemonic = Mnemonic::<coins_bip39::English>::new_from_phrase(phrase)?;
-                mnemonic.master_key(Some(password))?
+                let seed = mnemonic.to_seed(Some(password))?.to_vec();
+                (mnemonic.master_key(Some(password))?, seed)
             }
             crate::language::WordlistWrapper::Portuguese(_) => {
                 let mnemonic = Mnemonic::<coins_bip39::English>::new_from_phrase(phrase)?;
-                mnemonic.master_key(Some(password))?
+                let seed = mnemonic.to_seed(Some(password))?.to_vec();
+                (mnemonic.master_key(Some(password))?, seed)
             }
             crate::language::WordlistWrapper::Spanish(_) => {
                 let mnemonic = Mnemonic::<coins_bip39::English>::new_from_phrase(phrase)?;
-                mnemonic.master_key(Some(password))?
+                let seed = mnemonic.to_seed(Some(password))?.to_vec();
+                (mnemonic.master_key(Some(password))?, seed)
             }
         })
     }
@@ -429,7 +520,11 @@ impl Keystore {
 mod test {
     use std::fs::read_to_string;
 
-    use alloy::{hex, signers::wallet::Wallet};
+    use alloy::{
+        hex,
+        primitives::{address, Address},
+        signers::wallet::Wallet,
+    };
     use coins_bip39::English;
     // use hdwallet::{traits::Serialize as _, KeyChain as _};
     use rand::thread_rng;
@@ -461,7 +556,7 @@ mod test {
     //     let phrase = "army van defense carry jealous true garbage claim echo media make crunch";
     //     let mnemonic = Keystore::phrase_to_mnemonic(phrase).unwrap();
 
-    //     let seed = mnemonic.to_seed(None).unwrap();
+    // let seed = mnemonic.to_seed(None).unwrap();
 
     //     let root_key = hdwallet::ExtendedPrivKey::with_seed(&seed).unwrap();
     //     let key_chain = hdwallet::DefaultKeyChain::new(root_key);
@@ -503,10 +598,30 @@ mod test {
         let phrase = "army van defense carry jealous true garbage claim echo media make crunch";
         // let chain = "m/44'/60'/0'/0/0";
         let lang = "english";
-        let _res = Keystore::new(lang)
+        let password = "test";
+        let dir = "";
+        let keystore = Keystore::new(lang)
             .unwrap()
-            .create_root_keystore_with_path_phrase(phrase, "", "", "test")
+            .create_root_keystore_with_path_phrase(phrase, "", dir, password)
             .unwrap();
+
+        let address = keystore.get_address().unwrap();
+
+        let seed = Keystore::get_seed_keystore(address, dir, password).unwrap();
+        let seed = hex::encode(seed.seed());
+        println!("seed: {seed}");
+    }
+
+    #[test]
+    fn test_get_seed_keystore() {
+        let address = "0x2A47C7a76Ea6994B16eEEDBfD75845B2bC591fDF";
+        let address = address.parse::<Address>().unwrap();
+
+        let password = "test";
+        let dir = "";
+        let seed = Keystore::get_seed_keystore(address, dir, password).unwrap();
+        let seed = hex::encode(seed.seed());
+        println!("seed: {seed}");
     }
 
     #[test]
@@ -534,17 +649,18 @@ mod test {
         println!("设置成功，取出密钥： {pk_str}");
     }
 
-    // #[test]
-    // fn test_derive_child_with_phrase_and_save() {
-    //     // let phrase = "slam orient base razor trumpet swift second peasant amateur tape sweet enjoy";
-    //     let phrase = "army van defense carry jealous true garbage claim echo media make crunch";
-    //     let chain = "m/44'/60'/0'/0/1";
-    //     let lang = "english";
-    //     let _res = Keystore::new(lang)
-    //         .unwrap()
-    //         .derive_child_with_phrase_and_salt_save::<English>(phrase, "", chain, "", "test")
-    //         .unwrap();
-    // }
+    #[test]
+    fn test_derive_child_with_seed_and_chain_code_save() {
+        // let phrase = "slam orient base razor trumpet swift second peasant amateur tape sweet enjoy";
+        let seed = "5b56c417303faa3fcba7e57400e120a0ca83ec5a4fc9ffba757fbe63fbd77a89a1a3be4c67196f57c39a88b76373733891bfaba16ed27a813ceed498804c0570";
+        let seed = hex::decode(seed).unwrap();
+        // let address = address!("2A47C7a76Ea6994B16eEEDBfD75845B2bC591fDF");
+
+        let chain = "m/44'/60'/0'/0/1";
+        // let lang = "english";
+        // let _res = Keystore::new(lang)
+        Keystore::derive_child_with_seed_and_chain_code_save(seed, chain, "", "test").unwrap();
+    }
 
     #[test]
     fn test_derive_child_with_phrase_no_save() {

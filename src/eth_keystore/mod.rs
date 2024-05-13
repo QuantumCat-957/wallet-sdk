@@ -21,14 +21,13 @@ use std::{
     path::Path,
 };
 
-mod error;
 mod keystore;
 mod utils;
 
 #[cfg(feature = "geth-compat")]
 use utils::geth_compat::address_from_pk;
 
-pub use error::KeystoreError;
+pub use eth_keystore::KeystoreError;
 pub use keystore::{CipherparamsJson, CryptoJson, EthKeystore, KdfType, KdfparamsType};
 
 const DEFAULT_CIPHER: &str = "aes-128-ctr";
@@ -77,7 +76,7 @@ where
     let mut pk = vec![0u8; DEFAULT_KEY_SIZE];
     rng.fill_bytes(pk.as_mut_slice());
 
-    let name = encrypt_key(dir, rng, &pk, password, name)?;
+    let name = encrypt_data(dir, rng, &pk, password, name)?;
     Ok((pk, name))
 }
 
@@ -97,7 +96,7 @@ where
 /// # Ok(())
 /// # }
 /// ```
-pub fn decrypt_key<P, S>(path: P, password: S) -> Result<Vec<u8>, KeystoreError>
+pub fn decrypt_data<P, S>(path: P, password: S) -> Result<Vec<u8>, KeystoreError>
 where
     P: AsRef<Path>,
     S: AsRef<[u8]>,
@@ -149,10 +148,14 @@ where
     let decryptor =
         Aes128Ctr::new(&key[..16], &keystore.crypto.cipherparams.iv[..16]).expect("invalid length");
 
-    let mut pk = keystore.crypto.ciphertext;
-    decryptor.apply_keystream(&mut pk);
+    let mut data = keystore.crypto.ciphertext;
 
-    Ok(pk)
+    println!("[decrypt_data] data: {data:?}");
+
+    decryptor.apply_keystream(&mut data);
+    println!("[decrypt_data] apply_keystream data: {data:?}");
+
+    Ok(data)
 }
 
 /// Encrypts the given private key using the [Scrypt](https://tools.ietf.org/html/rfc7914.html)
@@ -179,10 +182,10 @@ where
 /// # Ok(())
 /// # }
 /// ```
-pub fn encrypt_key<P, R, B, S>(
+pub fn encrypt_data<P, R, B, S>(
     dir: P,
     rng: &mut R,
-    pk: B,
+    data: B,
     password: S,
     name: Option<&str>,
 ) -> Result<String, KeystoreError>
@@ -211,8 +214,11 @@ where
 
     let encryptor = Aes128Ctr::new(&key[..16], &iv[..16]).expect("invalid length");
 
-    let mut ciphertext = pk.as_ref().to_vec();
+    let mut ciphertext = data.as_ref().to_vec();
+
+    println!("[encrypt_key] ciphertext: {ciphertext:?}");
     encryptor.apply_keystream(&mut ciphertext);
+    println!("[encrypt_key] apply_keystream ciphertext: {ciphertext:?}");
 
     // Calculate the MAC.
     let mac = Keccak256::new()
@@ -246,9 +252,9 @@ where
             },
             mac: mac.to_vec(),
         },
-        #[cfg(feature = "geth-compat")]
-        address: address_from_pk(&pk)?,
     };
+
+    println!("[encrypt_data] keystore: {:?}", keystore);
     let contents = serde_json::to_string(&keystore)?;
 
     // Create a file in write-only mode, to store the encrypted JSON keystore.
@@ -271,5 +277,52 @@ impl Aes128Ctr {
 
     fn apply_keystream(self, buf: &mut [u8]) {
         self.inner.apply_keystream_partial(buf.into());
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::wallet::SeedWallet;
+
+    use super::*;
+    #[test]
+    fn test_encrypt_key() {
+        let dir = Path::new("");
+        let mut rng = rand::thread_rng();
+
+        // let provided_master_key_hex =
+        //     "8b09ab2bfb613458f9362c4b79ff5ac8b8c6da10f25017807aa08cea969cd1ca";
+        let seed_hex = "e61b56077fd615fa661b720d3021627d37bee396dcebd11a31f51355259712fe3b92f4cbd923dca32d6a80dfafbc0dd8f25a59aff331749c9afeef097a29d5d6";
+        let provided_master_key_bytes = hex::decode(seed_hex).unwrap();
+        let data_to_encrypt = provided_master_key_bytes.as_slice();
+
+        // // let data_to_encrypt = b"Hello, world!";
+        // // let data_to_encrypt = alloy::hex!("e61b56077fd615fa661b720d3021627d37bee396dcebd11a31f51355259712fe3b92f4cbd923dca32d6a80dfafbc0dd8f25a59aff331749c9afeef097a29d5d6");
+        // let data_to_encrypt =
+        //     alloy::hex!("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+        // // let data_to_encrypt = alloy::hex!("hellohellohellohellohello");
+
+        let a = data_to_encrypt.as_ref().to_vec();
+        println!("[test_encrypt_key] a: {a:?}");
+        println!("[test_encrypt_key] data: {data_to_encrypt:?}");
+
+        println!("");
+        let password = "password_to_keystore";
+
+        // Since we specify a custom filename for the keystore, it will be stored in `$dir/my-key`
+        let name =
+            encrypt_data(&dir, &mut rng, &data_to_encrypt, password, Some("my-key")).unwrap();
+
+        let path = "./my-key";
+        let data = decrypt_data(path, password).unwrap();
+
+        let data = hex::encode(data);
+
+        // let wallet = Wallet::from_slice(&data).unwrap();
+        // let key = wallet.signer().to_bytes();
+        // let private_key = key.to_vec();
+        // let private_key = alloy::hex::encode(private_key);
+        // let data = alloy::hex::encode(&data);
+        println!("data: {data}");
     }
 }
