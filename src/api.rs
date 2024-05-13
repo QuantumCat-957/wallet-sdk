@@ -57,14 +57,15 @@ pub fn set_root_password(
 
 /// 修改密码
 pub fn set_password(
-    path: &str,
+    address: Address,
     old_password: &str,
     new_password: &str,
     name: &str,
 ) -> Result<(), anyhow::Error> {
-    let pk = Keystore::get_pk_with_password(old_password, path)?;
+    let file_path = address.to_string();
+    let pk = Keystore::get_pk_with_password(old_password, &file_path)?;
 
-    Keystore::set_password(pk, path, new_password, name)?;
+    Keystore::set_password(pk, &file_path, new_password, name)?;
     // TODO: 删除旧keystore
     // let secret = eth_keystore::decrypt_key(keypath, password)?;
     Ok(())

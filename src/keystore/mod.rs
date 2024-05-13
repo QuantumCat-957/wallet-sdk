@@ -257,27 +257,28 @@ impl Keystore {
                 mnemonic.master_key(Some(password))?
             }
             crate::language::WordlistWrapper::ChineseSimplified(_) => {
-                let mnemonic = Mnemonic::<coins_bip39::English>::new_from_phrase(phrase)?;
+                let mnemonic = Mnemonic::<coins_bip39::ChineseSimplified>::new_from_phrase(phrase)?;
                 mnemonic.master_key(Some(password))?
             }
             crate::language::WordlistWrapper::ChineseTraditional(_) => {
-                let mnemonic = Mnemonic::<coins_bip39::English>::new_from_phrase(phrase)?;
+                let mnemonic =
+                    Mnemonic::<coins_bip39::ChineseTraditional>::new_from_phrase(phrase)?;
                 mnemonic.master_key(Some(password))?
             }
             crate::language::WordlistWrapper::Czech(_) => {
-                let mnemonic = Mnemonic::<coins_bip39::English>::new_from_phrase(phrase)?;
+                let mnemonic = Mnemonic::<coins_bip39::Czech>::new_from_phrase(phrase)?;
                 mnemonic.master_key(Some(password))?
             }
             crate::language::WordlistWrapper::French(_) => {
-                let mnemonic = Mnemonic::<coins_bip39::English>::new_from_phrase(phrase)?;
+                let mnemonic = Mnemonic::<coins_bip39::French>::new_from_phrase(phrase)?;
                 mnemonic.master_key(Some(password))?
             }
             crate::language::WordlistWrapper::Italian(_) => {
-                let mnemonic = Mnemonic::<coins_bip39::English>::new_from_phrase(phrase)?;
+                let mnemonic = Mnemonic::<coins_bip39::Italian>::new_from_phrase(phrase)?;
                 mnemonic.master_key(Some(password))?
             }
             crate::language::WordlistWrapper::Japanese(_) => {
-                let mnemonic = Mnemonic::<coins_bip39::English>::new_from_phrase(phrase)?;
+                let mnemonic = Mnemonic::<coins_bip39::Japanese>::new_from_phrase(phrase)?;
                 mnemonic.master_key(Some(password))?
             }
             crate::language::WordlistWrapper::Korean(_) => {
@@ -430,7 +431,7 @@ mod test {
 
     use alloy::{hex, signers::wallet::Wallet};
     use coins_bip39::English;
-    use hdwallet::{traits::Serialize as _, KeyChain as _};
+    // use hdwallet::{traits::Serialize as _, KeyChain as _};
     use rand::thread_rng;
     use secp256k1::Secp256k1;
     use tempfile::tempdir;

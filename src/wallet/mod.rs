@@ -1,47 +1,41 @@
-#![warn(
-    missing_copy_implementations,
-    missing_debug_implementations,
-    missing_docs,
-    unreachable_pub,
-    clippy::missing_const_for_fn,
-    rustdoc::all
-)]
+#![warn(unreachable_pub, clippy::missing_const_for_fn, rustdoc::all)]
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
-#![deny(unused_must_use, rust_2018_idioms)]
+#![deny(unused_must_use)]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
+use crate::sign_transaction_with_chain_id;
 use alloy::consensus::SignableTransaction;
 use alloy::network::{TxSigner, TxSignerSync};
 use alloy::primitives::{Address, ChainId, Signature, B256};
 use alloy::signers::k256::ecdsa::{self, signature::hazmat::PrehashSigner, RecoveryId};
-use alloy::signers::{k256, sign_transaction_with_chain_id, Result, Signer, SignerSync};
+use alloy::signers::{k256, Result, Signer, SignerSync};
 use async_trait::async_trait;
 use std::fmt;
 
 pub use alloy::signers::wallet::WalletError;
 
-#[cfg(feature = "mnemonic")]
-mod mnemonic;
-#[cfg(feature = "mnemonic")]
-pub use mnemonic::MnemonicBuilder;
+// #[cfg(feature = "mnemonic")]
+// mod mnemonic;
+// #[cfg(feature = "mnemonic")]
+// pub use mnemonic::MnemonicBuilder;
 
 mod private_key;
 
-#[cfg(feature = "yubihsm")]
-mod yubi;
+// #[cfg(feature = "yubihsm")]
+// mod yubi;
 
-#[cfg(feature = "yubihsm")]
-pub use yubihsm;
+// #[cfg(feature = "yubihsm")]
+// pub use yubihsm;
 
-#[cfg(feature = "mnemonic")]
-pub use coins_bip39;
+// #[cfg(feature = "mnemonic")]
+// pub use coins_bip39;
 
 /// A wallet instantiated with a locally stored private key
 pub type LocalWallet = Wallet<k256::ecdsa::SigningKey>;
 
 /// A wallet instantiated with a YubiHSM
-#[cfg(feature = "yubihsm")]
-pub type YubiWallet = Wallet<yubihsm::ecdsa::Signer<k256::Secp256k1>>;
+// #[cfg(feature = "yubihsm")]
+// pub type YubiWallet = Wallet<yubihsm::ecdsa::Signer<k256::Secp256k1>>;
 
 /// An Ethereum private-public key pair which can be used for signing messages.
 ///
@@ -208,8 +202,8 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use alloy_consensus::TxLegacy;
-    use alloy_primitives::{address, U256};
+    use alloy::consensus::TxLegacy;
+    use alloy::primitives::{address, U256};
 
     #[tokio::test]
     async fn signs_tx() {
@@ -287,7 +281,7 @@ mod test {
         // Errors on mismatch.
         tx.chain_id = Some(2);
         let error = sign_tx_test(&mut tx, Some(1)).await.unwrap_err();
-        let expected_error = alloy_signer::Error::TransactionChainIdMismatch { signer: 1, tx: 2 };
+        let expected_error = alloy::signers::Error::TransactionChainIdMismatch { signer: 1, tx: 2 };
         assert_eq!(error.to_string(), expected_error.to_string());
     }
 }

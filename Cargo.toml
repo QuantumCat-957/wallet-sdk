@@ -25,10 +25,23 @@ base64 = "0.22.1"
 coins-bip39 = "0.8.7"
 coins-bip32 = "0.8.7"
 tempfile = "3.10.1"
-hdwallet = "0.4.1"
+# hdwallet = "0.4.1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 url = "2.5.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.89"
 async-trait = "0.1.80"
+# keystore
+elliptic-curve = "0.13.8"
 eth-keystore = { version = "0.5.0" }
+
+ctr = "0.9.2"
+aes = "0.8.4"
+digest = "0.10.0"
+hex = "0.4.2"
+hmac = "0.12.0"
+pbkdf2 = { version = "0.11", default-features = false }
+scrypt = { version = "0.10.0", default-features = false }
+sha2 = "0.10.1"
+sha3 = "0.10.0"
+uuid = { version = "1.0", features = ["serde", "v4"] }
