@@ -58,6 +58,14 @@ impl Keystore {
         })
     }
 
+    pub(crate) fn get_name(&self) -> Result<String, anyhow::Error> {
+        let Some(name) = &self.name else {
+            return Err(anyhow!("No wallet"));
+        };
+
+        Ok(name.to_string())
+    }
+
     pub(crate) fn get_address(&self) -> Result<Address, anyhow::Error> {
         let Some(wallet) = &self.wallet_wrapper else {
             return Err(anyhow!("No wallet"));
@@ -149,6 +157,7 @@ impl Keystore {
             pk_wallet,
             seed_wallet,
         });
+        self.name = Some(name);
         Ok(self)
     }
 

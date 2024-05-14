@@ -40,7 +40,7 @@ pub fn generate_root(
     coin_type: u32,
     account_index: u32,
     password: &str,
-) -> Result<(), anyhow::Error> {
+) -> Result<String, anyhow::Error> {
     // 构建存储路径
     let mut storage_path = PathBuf::from(storage_dir);
     storage_path.push(wallet_name);
@@ -56,14 +56,14 @@ pub fn generate_root(
 
     // 重新创建root
     // let bip44_path = format!("m/44'/{}'/{}'/0/0", coin_type, account_index);
-    Keystore::new(lang)?.create_root_keystore_with_path_phrase(
+    let keystore = Keystore::new(lang)?.create_root_keystore_with_path_phrase(
         phrase,
         salt,
         &storage_path,
         password,
     )?;
 
-    Ok(())
+    Ok(keystore.get_name()?)
 }
 
 /// 重置根密码
@@ -179,7 +179,7 @@ mod tests {
         let password = "example_password";
 
         // 调用 generate_root 函数
-        generate_root(
+        let name = generate_root(
             lang,
             phrase,
             salt,
@@ -189,6 +189,7 @@ mod tests {
             account_index,
             password,
         )?;
+        println!("name: {}", name);
 
         // 检查生成的路径
         let mut expected_path = PathBuf::from(&storage_dir);
@@ -196,21 +197,22 @@ mod tests {
         expected_path.push(format!("coin_{}", coin_type));
         expected_path.push(format!("account_{}", account_index));
 
+        println!("expected_path: {expected_path:?}");
         // 确认目录存在
         assert!(expected_path.exists());
         assert!(expected_path.is_dir());
 
         // 确认keystore文件存在
-        let keystore_file = expected_path.join("keystore_file");
+        let keystore_file = expected_path.join(name);
         assert!(keystore_file.exists());
         assert!(keystore_file.is_file());
 
         // 打印目录结构
-        println!("Directory structure of '{}':", storage_dir.display());
-        print_dir_structure(&storage_dir, 0);
+        println!("Directory structure of '{}':", expected_path.display());
+        print_dir_structure(&expected_path, 0);
 
         // 清理测试目录
-        fs::remove_dir_all(&storage_dir)?;
+        // fs::remove_dir_all(&expected_path)?;
 
         Ok(())
     }
