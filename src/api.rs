@@ -163,7 +163,7 @@ mod tests {
 
     #[test]
     fn test_generate_root() -> Result<(), anyhow::Error> {
-        let storage_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?).join("test_storage");
+        let storage_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?);
 
         // 创建测试目录
         if !storage_dir.exists() {

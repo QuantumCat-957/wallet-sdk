@@ -14,8 +14,20 @@ use crate::wallet::SeedWallet;
 
 #[derive(Debug, Clone)]
 pub struct Keystore {
-    wallet: Option<Wallet<alloy::signers::k256::ecdsa::SigningKey>>,
+    wallet_wrapper: Option<WalletWrapper>,
+    name: Option<String>,
     _wordlist: crate::language::WordlistWrapper,
+}
+
+#[derive(Debug, Clone)]
+enum WalletWrapper {
+    Root {
+        pk_wallet: Wallet<alloy::signers::k256::ecdsa::SigningKey>,
+        seed_wallet: SeedWallet,
+    },
+    Child {
+        pk_wallet: Wallet<alloy::signers::k256::ecdsa::SigningKey>,
+    },
 }
 
 // pub struct  KeystoreBuilder{
@@ -40,17 +52,26 @@ impl Keystore {
 
         println!("wordlist_wrapper: {wordlist_wrapper:#?}");
         Ok(Self {
-            wallet: None,
+            wallet_wrapper: None,
+            name: None,
             _wordlist: wordlist_wrapper?,
         })
     }
 
     pub(crate) fn get_address(&self) -> Result<Address, anyhow::Error> {
-        let Some(wallet) = &self.wallet else {
+        let Some(wallet) = &self.wallet_wrapper else {
             return Err(anyhow!("No wallet"));
         };
 
-        Ok(wallet.address())
+        let pk_wallet = match wallet {
+            WalletWrapper::Root {
+                pk_wallet,
+                seed_wallet: _,
+            } => pk_wallet,
+            WalletWrapper::Child { pk_wallet } => pk_wallet,
+        };
+
+        Ok(pk_wallet.address())
     }
 
     // pub fn gen_phrase(self) -> String {
@@ -71,8 +92,9 @@ impl Keystore {
         password: &str,
     ) -> Result<Self, anyhow::Error> {
         let mut rng = rand::thread_rng();
-        let (wallet, _) = Wallet::new_keystore(path, &mut rng, password, None)?;
-        self.wallet = Some(wallet);
+        let (pk_wallet, _) = Wallet::new_keystore(path, &mut rng, password, None)?;
+        // self.pk_wallet = Some(wallet);
+        // self.wallet_wrapper = WalletWrapper::Root { pk_wallet, seed_wallet: () }
         Ok(self)
     }
 
@@ -111,19 +133,22 @@ impl Keystore {
 
         let name = Self::from_signingkey_to_name(signingkey, "pk");
 
-        let (wallet, _) = alloy::signers::wallet::Wallet::encrypt_keystore(
+        let (pk_wallet, _) = alloy::signers::wallet::Wallet::encrypt_keystore(
             &path,
             &mut rng,
             private_key,
             password,
             Some(&name),
         )?;
-        let address = wallet.address();
+        let address = pk_wallet.address();
         println!("地址：{}", address);
 
-        Keystore::save_seed_keystore(address, seed.as_slice(), path, password)?;
+        let seed_wallet = Keystore::save_seed_keystore(address, seed.as_slice(), path, password)?;
 
-        self.wallet = Some(wallet);
+        self.wallet_wrapper = Some(WalletWrapper::Root {
+            pk_wallet,
+            seed_wallet,
+        });
         Ok(self)
     }
 
@@ -170,13 +195,13 @@ impl Keystore {
         if salt.is_empty() {
             return Err(anyhow!("salt should not be empty"));
         }
-        let wallet = MnemonicBuilder::<W>::default()
+        let pk_wallet = MnemonicBuilder::<W>::default()
             .phrase(phrase)
             // Use this if your mnemonic is encrypted
             .password(salt)
             .build()?;
 
-        self.wallet = Some(wallet);
+        // self.pk_wallet = Some(wallet);
         Ok(self)
     }
 
@@ -185,12 +210,16 @@ impl Keystore {
         seed: &[u8],
         dir: &PathBuf,
         password: &str,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<SeedWallet, anyhow::Error> {
         let mut rng = rand::thread_rng();
         let name = Self::from_address_to_name(address, "seed");
         // let path = dir.path().join(name);
         crate::eth_keystore::encrypt_data(dir, &mut rng, seed, password, Some(&name))?;
-        Ok(())
+
+        Ok(SeedWallet {
+            seed: seed.to_vec(),
+            address,
+        })
     }
 
     pub fn get_seed_keystore(
@@ -314,7 +343,7 @@ impl Keystore {
         salt: &str,
         chain: &str,
     ) -> Result<Self, anyhow::Error> {
-        let wallet = MnemonicBuilder::<W>::default()
+        let pk_wallet = MnemonicBuilder::<W>::default()
             .phrase(phrase)
             .derivation_path(chain)?
             // Use this if your mnemonic is encrypted
@@ -323,7 +352,10 @@ impl Keystore {
 
         let key = self.clone().get_private()?;
         println!("key: {key}");
-        self.wallet = Some(wallet);
+        // self.wallet_wrapper = Some(WalletWrapper::Root {
+        //     pk_wallet,
+        //     seed_wallet,
+        // });
         Ok(self)
     }
 
@@ -392,8 +424,15 @@ impl Keystore {
     // 获取密钥
     // TODO: 不用self
     pub fn get_private(self) -> Result<String, crate::Error> {
-        let private_key = if let Some(wallet) = self.wallet {
-            wallet
+        let private_key = if let Some(wallet) = self.wallet_wrapper {
+            let pk_wallet = match wallet {
+                WalletWrapper::Root {
+                    pk_wallet,
+                    seed_wallet: _,
+                } => pk_wallet,
+                WalletWrapper::Child { pk_wallet } => pk_wallet,
+            };
+            pk_wallet
                 .signer()
                 .to_bytes()
                 .iter()
@@ -440,14 +479,22 @@ impl Keystore {
     ) -> Result<alloy::primitives::Signature, anyhow::Error> {
         use alloy::signers::Signer;
 
-        let Some(signer) = &self.wallet else {
+        let Some(wallet_wrapper) = &self.wallet_wrapper else {
             return Err(anyhow!("No wallet"));
         };
-        let signature = signer.sign_message(message.as_bytes()).await?;
+
+        let pk_wallet = match wallet_wrapper {
+            WalletWrapper::Root {
+                pk_wallet,
+                seed_wallet: _,
+            } => pk_wallet,
+            WalletWrapper::Child { pk_wallet } => pk_wallet,
+        };
+        let signature = pk_wallet.sign_message(message.as_bytes()).await?;
 
         println!(
             "Signature produced by {:?}: {:?}",
-            signer.address(),
+            pk_wallet.address(),
             signature
         );
         println!(
@@ -493,10 +540,18 @@ impl Keystore {
     // 检查本地根钱包的地址和所选的地址是否一致
     fn _check_root_wallet(self, address: &str) -> Result<(), anyhow::Error> {
         let address = address.parse::<Address>()?;
-        let Some(signer) = self.wallet else {
+        let Some(wallet_wrapper) = &self.wallet_wrapper else {
             return Err(anyhow!("No wallet"));
         };
-        let local_address = signer.address();
+
+        let pk_wallet = match wallet_wrapper {
+            WalletWrapper::Root {
+                pk_wallet,
+                seed_wallet: _,
+            } => pk_wallet,
+            WalletWrapper::Child { pk_wallet } => pk_wallet,
+        };
+        let local_address = pk_wallet.address();
 
         if address.ne(&local_address) {
             return Err(anyhow!(
@@ -708,7 +763,8 @@ mod test {
     async fn test_sign_message() {
         let signer = alloy::signers::wallet::LocalWallet::random();
         let wallet = Keystore {
-            wallet: Some(signer),
+            wallet_wrapper: Some(crate::keystore::WalletWrapper::Child { pk_wallet: signer }),
+            name: Some(String::from("value")),
             _wordlist: crate::language::WordlistWrapper::English(English),
         };
 
