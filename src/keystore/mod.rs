@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use alloy::{
     network::{EthereumSigner, TransactionBuilder},
     primitives::Address,
@@ -79,7 +81,7 @@ impl Keystore {
         mut self,
         phrase: &str,
         salt: &str,
-        path: &str,
+        path: &PathBuf,
         password: &str,
     ) -> Result<Self, anyhow::Error> {
         let mut rng = rand::thread_rng();
@@ -110,7 +112,7 @@ impl Keystore {
         let name = Self::from_signingkey_to_name(signingkey, "pk");
 
         let (wallet, _) = alloy::signers::wallet::Wallet::encrypt_keystore(
-            path,
+            &path,
             &mut rng,
             private_key,
             password,
@@ -181,7 +183,7 @@ impl Keystore {
     pub fn save_seed_keystore(
         address: Address,
         seed: &[u8],
-        dir: &str,
+        dir: &PathBuf,
         password: &str,
     ) -> Result<(), anyhow::Error> {
         let mut rng = rand::thread_rng();
@@ -193,7 +195,7 @@ impl Keystore {
 
     pub fn get_seed_keystore(
         address: Address,
-        dir: &str,
+        dir: &PathBuf,
         password: &str,
     ) -> Result<SeedWallet, anyhow::Error> {
         let name = Self::from_address_to_name(address, "seed");
@@ -518,7 +520,7 @@ impl Keystore {
 
 #[cfg(test)]
 mod test {
-    use std::fs::read_to_string;
+    use std::{fs::read_to_string, path::PathBuf};
 
     use alloy::{
         hex,
@@ -599,15 +601,15 @@ mod test {
         // let chain = "m/44'/60'/0'/0/0";
         let lang = "english";
         let password = "test";
-        let dir = "";
+        let dir = PathBuf::new().join("");
         let keystore = Keystore::new(lang)
             .unwrap()
-            .create_root_keystore_with_path_phrase(phrase, "", dir, password)
+            .create_root_keystore_with_path_phrase(phrase, "", &dir, password)
             .unwrap();
 
         let address = keystore.get_address().unwrap();
 
-        let seed = Keystore::get_seed_keystore(address, dir, password).unwrap();
+        let seed = Keystore::get_seed_keystore(address, &dir, password).unwrap();
         let seed = hex::encode(seed.seed());
         println!("seed: {seed}");
     }
@@ -618,8 +620,8 @@ mod test {
         let address = address.parse::<Address>().unwrap();
 
         let password = "test";
-        let dir = "";
-        let seed = Keystore::get_seed_keystore(address, dir, password).unwrap();
+        let dir = PathBuf::new().join("");
+        let seed = Keystore::get_seed_keystore(address, &dir, password).unwrap();
         let seed = hex::encode(seed.seed());
         println!("seed: {seed}");
     }
