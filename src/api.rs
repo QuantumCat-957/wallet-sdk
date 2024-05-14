@@ -47,9 +47,10 @@ pub fn generate_root(
     storage_path.push(format!("coin_{}", coin_type));
     storage_path.push(format!("account_{}", account_index));
 
+    println!("storage_path: {storage_path:?}");
     // 清空该存储路径下的keystore
     if storage_path.exists() {
-        fs::remove_dir_all(&storage_path)?; // 删除目录及其内容
+        // fs::remove_dir_all(&storage_path)?; // 删除目录及其内容
     }
     fs::create_dir_all(&storage_path)?; // 重新创建目录
 
@@ -170,8 +171,8 @@ mod tests {
         }
 
         let lang = "english";
-        let phrase = "example phrase";
-        let salt = "example salt";
+        let phrase = "shaft love depth mercy defy cargo strong control eye machine night test";
+        let salt = "salt";
         let wallet_name = "example_wallet";
         let coin_type = 60; // 60 是以太坊的 coin_type
         let account_index = 0;
