@@ -171,10 +171,10 @@ pub fn set_password(
 mod tests {
     use super::*;
     use std::env;
-    use std::fs::{self, ReadDir};
-    use std::path::Path;
+    use std::fs;
+    use std::path::PathBuf;
 
-    fn print_dir_structure(dir: &Path, level: usize) {
+    fn print_dir_structure(dir: &PathBuf, level: usize) {
         if let Ok(entries) = fs::read_dir(dir) {
             for entry in entries {
                 if let Ok(entry) = entry {
@@ -195,6 +195,7 @@ mod tests {
 
     #[test]
     fn test_generate_root() -> Result<(), anyhow::Error> {
+        // 获取项目根目录
         let storage_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?);
 
         // 创建测试目录
@@ -202,6 +203,7 @@ mod tests {
             fs::create_dir_all(&storage_dir)?;
         }
 
+        // 测试参数
         let lang = "english";
         let phrase = "shaft love depth mercy defy cargo strong control eye machine night test";
         let salt = "salt";
@@ -223,19 +225,20 @@ mod tests {
         )?;
         println!("name: {}", name);
 
-        // 检查生成的路径
+        // 构建预期路径
         let mut expected_path = PathBuf::from(&storage_dir);
         expected_path.push(wallet_name);
         expected_path.push(format!("coin_{}", coin_type));
         expected_path.push(format!("account_{}", account_index));
 
-        println!("expected_path: {expected_path:?}");
+        println!("expected_path: {:?}", expected_path);
+
         // 确认目录存在
         assert!(expected_path.exists());
         assert!(expected_path.is_dir());
 
         // 确认keystore文件存在
-        let keystore_file = expected_path.join(name);
+        let keystore_file = expected_path.join("keystore_file");
         assert!(keystore_file.exists());
         assert!(keystore_file.is_file());
 
