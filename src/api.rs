@@ -18,7 +18,7 @@ pub fn gen_phrase(lang: &str) -> Result<String, anyhow::Error> {
 /// - `lang`: 使用的语言，如英语或中文。
 /// - `phrase`: 用于生成根密钥的助记词。
 /// - `salt`: 用于加密助记词的盐。
-/// - `storage_dir`: 存储根密钥的路径，由调用者指定。
+/// - `storage_dir`: 存储根密钥的路径，由调用者指定的目录。
 /// - `wallet_name`: 钱包名称。
 /// - `coin_type`: 币种类型，比如0代表比特币，60代表以太坊。
 /// - `account_index`: 账户索引，用于生成不同的子地址。
@@ -26,11 +26,43 @@ pub fn gen_phrase(lang: &str) -> Result<String, anyhow::Error> {
 ///
 /// # 返回
 ///
-/// 如果成功生成并存储根密钥，则返回`Ok(())`，否则返回错误。
+/// 如果成功生成并存储根密钥，则返回`Ok(keystore_name)`，其中`keystore_name`是生成的keystore的名称；
+/// 否则返回错误。
 ///
 /// # 注意
 ///
 /// 在生成新的根密钥前，该存储路径下现有的keystore将被清空。
+///
+/// # 示例
+///
+/// ```rust
+/// # use your_crate_name::generate_root;
+/// # use std::path::Path;
+/// # fn main() -> Result<(), anyhow::Error> {
+/// let lang = "english";
+/// let phrase = "example phrase";
+/// let salt = "example salt";
+/// let storage_dir = "/path/to/storage";
+/// let wallet_name = "example_wallet";
+/// let coin_type = 60; // 60 是以太坊的 coin_type
+/// let account_index = 0;
+/// let password = "example_password";
+///
+/// let keystore_name = generate_root(
+///     lang,
+///     phrase,
+///     salt,
+///     storage_dir,
+///     wallet_name,
+///     coin_type,
+///     account_index,
+///     password
+/// )?;
+///
+/// println!("Keystore created with name: {}", keystore_name);
+/// # Ok(())
+/// # }
+/// ```
 pub fn generate_root(
     lang: &str,
     phrase: &str,
@@ -50,7 +82,7 @@ pub fn generate_root(
     println!("storage_path: {storage_path:?}");
     // 清空该存储路径下的keystore
     if storage_path.exists() {
-        // fs::remove_dir_all(&storage_path)?; // 删除目录及其内容
+        fs::remove_dir_all(&storage_path)?; // 删除目录及其内容
     }
     fs::create_dir_all(&storage_path)?; // 重新创建目录
 
