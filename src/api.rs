@@ -123,23 +123,45 @@ pub fn generate_root(
 
 /// 重置根密码
 /// 相当于忘记密码
-// pub fn reset_root(
-//     lang: &str,
-//     phrase: &str,
-//     salt: &str,
-//     path: &str,
-//     password: &str,
-// ) -> Result<Address, anyhow::Error> {
-//     // TODO: 清空keystore
+pub fn reset_root(
+    lang: &str,
+    phrase: &str,
+    salt: &str,
+    address: &str,
+    storage_dir: &str,
+    wallet_name: &str,
+    coin_type: u32,
+    account_index: u32,
+    new_password: &str,
+) -> Result<Address, anyhow::Error> {
+    // 验证地址是否正确
+    let address = address.parse()?;
+    Keystore::new(lang)?.check_pk(phrase, salt, address)?;
 
-//     // 重新创建root
-//     let wordlist_wrapper = WordlistWrapper::new(lang)?;
+    // 构建存储路径
+    let mut storage_path = PathBuf::from(storage_dir);
+    storage_path.push(wallet_name);
+    storage_path.push(format!("coin_{}", coin_type));
+    storage_path.push(format!("account_{}", account_index));
 
-//     let wallet =
-//         Keystore::new(lang)?.create_root_keystore_with_path_phrase(phrase, salt, path, password)?;
+    println!("storage_path: {storage_path:?}");
 
-//     Ok(wallet.get_address()?)
-// }
+    // 清空该存储路径下的keystore
+    if storage_path.exists() {
+        fs::remove_dir_all(&storage_path)?; // 删除目录及其内容
+    }
+    fs::create_dir_all(&storage_path)?; // 重新创建目录
+
+    // 重新创建root
+    let wallet = Keystore::new(lang)?.create_root_keystore_with_path_phrase(
+        phrase,
+        salt,
+        &storage_path,
+        new_password,
+    )?;
+
+    Ok(wallet.get_address()?)
+}
 
 /// 修改根密码
 pub fn set_root_password(

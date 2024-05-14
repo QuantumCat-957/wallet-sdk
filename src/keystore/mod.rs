@@ -161,6 +161,61 @@ impl Keystore {
         Ok(self)
     }
 
+    /// 验证助记词和盐生成的根私钥是否对应给定的地址。
+    ///
+    /// 该方法使用助记词和盐生成根私钥，并从根私钥派生出公钥地址，然后与提供的地址进行比较。
+    ///
+    /// # 参数
+    ///
+    /// * `phrase` - 助记词，用于生成根私钥。
+    /// * `salt` - 盐，用于增加生成根私钥的复杂度。
+    /// * `address` - 要验证的目标地址。
+    ///
+    /// # 返回值
+    ///
+    /// 如果生成的地址与提供的地址匹配，返回 `Ok(())`。否则，返回包含错误信息的 `Err`。
+    ///
+    /// # 错误
+    ///
+    /// 如果助记词或盐不正确，导致生成的地址与提供的地址不匹配，则返回包含错误信息的 `Err`。
+    ///
+    /// # 示例
+    ///
+    /// ```
+    /// use your_crate::Keystore;
+    /// use your_crate::Address;
+    /// use anyhow::Result;
+    ///
+    /// fn example() -> Result<()> {
+    ///     let keystore = Keystore::new("english")?;
+    ///     let phrase = "shaft love depth mercy defy cargo strong control eye machine night test";
+    ///     let salt = "salt";
+    ///     let address = Address::from_str("0x...")?;
+    ///
+    ///     keystore.check_pk(phrase, salt, address)?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub(crate) fn check_pk(
+        self,
+        phrase: &str,
+        salt: &str,
+        address: Address,
+    ) -> Result<(), anyhow::Error> {
+        let (master_key, _) = self.phrase_to_master_key(phrase, salt)?;
+        let signingkey: &coins_bip32::ecdsa::SigningKey = master_key.as_ref();
+        // let private_key = signingkey.to_bytes();
+        let wallet = Wallet::from_signing_key(signingkey.to_owned());
+        let _address = wallet.address();
+
+        println!("Generated address: {}", _address);
+        println!("Provided address: {}", address);
+        if _address.ne(&address) {
+            return Err(anyhow!("Phrase or salt incorrect"));
+        }
+        Ok(())
+    }
+
     fn from_signingkey_to_name(
         signingkey: &coins_bip32::ecdsa::SigningKey,
         suffix: &str,
@@ -584,7 +639,11 @@ impl Keystore {
 
 #[cfg(test)]
 mod test {
-    use std::{fs::read_to_string, path::PathBuf};
+    use std::{
+        env,
+        fs::{self, read_to_string},
+        path::PathBuf,
+    };
 
     use alloy::{
         hex,
@@ -597,7 +656,61 @@ mod test {
     use secp256k1::Secp256k1;
     use tempfile::tempdir;
 
+    use crate::keystore::WalletWrapper;
+
     use super::Keystore;
+
+    /// 准备测试环境并生成根密钥库。
+    fn setup_test_environment_and_create_keystore(
+        lang: &str,
+        phrase: &str,
+        salt: &str,
+        wallet_name: &str,
+        password: &str,
+    ) -> Result<(Keystore, PathBuf), anyhow::Error> {
+        // 获取项目根目录
+        let storage_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?);
+
+        // 创建测试目录
+        if !storage_dir.exists() {
+            fs::create_dir_all(&storage_dir)?;
+        }
+
+        // 定义测试路径
+        let path = storage_dir.join(wallet_name);
+
+        // 如果路径存在，清空目录
+        if path.exists() {
+            fs::remove_dir_all(&path)?;
+        }
+        fs::create_dir_all(&path)?;
+
+        // 创建 Keystore 对象
+        let keystore = Keystore::new(lang)?
+            .create_root_keystore_with_path_phrase(phrase, salt, &path, password)?;
+
+        Ok((keystore, path))
+    }
+
+    /// 打印目录结构
+    fn print_dir_structure(dir: &PathBuf, level: usize) {
+        if let Ok(entries) = fs::read_dir(dir) {
+            for entry in entries {
+                if let Ok(entry) = entry {
+                    let path = entry.path();
+                    for _ in 0..level {
+                        print!("  ");
+                    }
+                    if path.is_dir() {
+                        println!("{}/", path.file_name().unwrap().to_string_lossy());
+                        print_dir_structure(&path, level + 1);
+                    } else {
+                        println!("{}", path.file_name().unwrap().to_string_lossy());
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn test_gen_phrase() {
@@ -617,65 +730,54 @@ mod test {
             .unwrap();
     }
 
-    // #[test]
-    // fn test_hdwallet_gen_extended_privkey() {
-    //     let phrase = "army van defense carry jealous true garbage claim echo media make crunch";
-    //     let mnemonic = Keystore::phrase_to_mnemonic(phrase).unwrap();
+    #[test]
+    fn test_create_root_keystore_with_path_phrase() -> Result<(), anyhow::Error> {
+        // 测试参数
+        let lang = "english";
+        let phrase = "shaft love depth mercy defy cargo strong control eye machine night test";
+        let salt = "salt";
+        let wallet_name = "test_wallet";
+        let password = "example_password";
 
-    // let seed = mnemonic.to_seed(None).unwrap();
+        // 调用公共函数设置测试环境并创建密钥库
+        let (keystore, path) =
+            setup_test_environment_and_create_keystore(lang, phrase, salt, wallet_name, password)?;
 
-    //     let root_key = hdwallet::ExtendedPrivKey::with_seed(&seed).unwrap();
-    //     let key_chain = hdwallet::DefaultKeyChain::new(root_key);
-    //     let (extended_key, _derivation) = key_chain
-    //         .derive_private_key(hdwallet::ChainPath::from("m/44'/60'/0'/0/0"))
-    //         .expect("fetch key");
+        // 检查返回值
+        assert!(keystore.name.is_some());
+        assert!(keystore.wallet_wrapper.is_some());
 
-    //     // let hardened_key_index = hdwallet::KeyIndex::from_index(0).unwrap();
-    //     // let root_key = root_key.derive_private_key(hardened_key_index)?;
-    //     println!(
-    //         "Private key 0x{}\n",
-    //         alloy::hex::encode(extended_key.serialize())
-    //     );
-    // }
+        // 打印生成的地址
+        if let Some(WalletWrapper::Root { pk_wallet, .. }) = keystore.wallet_wrapper {
+            println!("生成的地址: {}", pk_wallet.address());
+        }
 
-    // #[test]
-    // fn test_gen_master_key() {
-    //     let provided_master_key_hex =
-    //         "8b09ab2bfb613458f9362c4b79ff5ac8b8c6da10f25017807aa08cea969cd1ca";
-    //         let provided_master_key_bytes = hex::decode(provided_master_key_hex).unwrap();
-    //         let provided_master_key_bytes = provided_master_key_bytes.as_slice();
-    //         let sign :coins_bip32::ecdsa::SigningKey= provided_master_key_bytes.try_into().unwrap();
-    //     // 将提供的根私钥转换为XPriv类型
-    //     let provided_master_key =
-    //         coins_bip32::xkeys::XPriv::from_str(provided_master_key_hex).unwrap();
-    // }
+        // 打印生成的目录结构
+        println!("Directory structure of '{}':", path.display());
+        print_dir_structure(&path, 0);
 
-    // #[test]
-    // fn test_create() {
-    //     let phrase = Keystore::gen_phrase::<coins_bip39::English>();
-    //     let salt = "Salt";
-    //     let res = Keystore::create(&phrase, bip39::Language::English, salt);
-    //     println!("res: {:#?}", res);
-    // }
+        Ok(())
+    }
 
     #[test]
-    fn test_create_root_keystore_with_path_phrase() {
-        // let phrase = "slam orient base razor trumpet swift second peasant amateur tape sweet enjoy";
-        let phrase = "army van defense carry jealous true garbage claim echo media make crunch";
-        // let chain = "m/44'/60'/0'/0/0";
+    fn test_check_pk() -> Result<(), anyhow::Error> {
+        // 测试参数
         let lang = "english";
-        let password = "test";
-        let dir = PathBuf::new().join("");
-        let keystore = Keystore::new(lang)
-            .unwrap()
-            .create_root_keystore_with_path_phrase(phrase, "", &dir, password)
-            .unwrap();
+        let phrase = "shaft love depth mercy defy cargo strong control eye machine night test";
+        let salt = "salt";
+        let wallet_name = "test_wallet";
+        let password = "example_password";
 
-        let address = keystore.get_address().unwrap();
+        // 调用公共函数设置测试环境并创建密钥库
+        let (keystore, _) =
+            setup_test_environment_and_create_keystore(lang, phrase, salt, wallet_name, password)?;
 
-        let seed = Keystore::get_seed_keystore(address, &dir, password).unwrap();
-        let seed = hex::encode(seed.seed());
-        println!("seed: {seed}");
+        let address = keystore.get_address()?;
+
+        // 验证生成的地址是否与提供的地址匹配
+        Keystore::new(lang)?.check_pk(phrase, salt, address)?;
+
+        Ok(())
     }
 
     #[test]
@@ -861,4 +963,69 @@ mod test {
         println!("Keystore file contents: {keystore_contents:?}");
         Ok(())
     }
+}
+
+#[cfg(test)]
+mod other_tests {
+
+    // #[test]
+    // fn test_hdwallet_gen_extended_privkey() {
+    //     let phrase = "army van defense carry jealous true garbage claim echo media make crunch";
+    //     let mnemonic = Keystore::phrase_to_mnemonic(phrase).unwrap();
+
+    // let seed = mnemonic.to_seed(None).unwrap();
+
+    //     let root_key = hdwallet::ExtendedPrivKey::with_seed(&seed).unwrap();
+    //     let key_chain = hdwallet::DefaultKeyChain::new(root_key);
+    //     let (extended_key, _derivation) = key_chain
+    //         .derive_private_key(hdwallet::ChainPath::from("m/44'/60'/0'/0/0"))
+    //         .expect("fetch key");
+
+    //     // let hardened_key_index = hdwallet::KeyIndex::from_index(0).unwrap();
+    //     // let root_key = root_key.derive_private_key(hardened_key_index)?;
+    //     println!(
+    //         "Private key 0x{}\n",
+    //         alloy::hex::encode(extended_key.serialize())
+    //     );
+    // }
+
+    // #[test]
+    // fn test_gen_master_key() {
+    //     let provided_master_key_hex =
+    //         "8b09ab2bfb613458f9362c4b79ff5ac8b8c6da10f25017807aa08cea969cd1ca";
+    //         let provided_master_key_bytes = hex::decode(provided_master_key_hex).unwrap();
+    //         let provided_master_key_bytes = provided_master_key_bytes.as_slice();
+    //         let sign :coins_bip32::ecdsa::SigningKey= provided_master_key_bytes.try_into().unwrap();
+    //     // 将提供的根私钥转换为XPriv类型
+    //     let provided_master_key =
+    //         coins_bip32::xkeys::XPriv::from_str(provided_master_key_hex).unwrap();
+    // }
+
+    // #[test]
+    // fn test_create() {
+    //     let phrase = Keystore::gen_phrase::<coins_bip39::English>();
+    //     let salt = "Salt";
+    //     let res = Keystore::create(&phrase, bip39::Language::English, salt);
+    //     println!("res: {:#?}", res);
+    // }
+
+    // #[test]
+    // fn test_create_root_keystore_with_path_phrase() {
+    //     // let phrase = "slam orient base razor trumpet swift second peasant amateur tape sweet enjoy";
+    //     let phrase = "army van defense carry jealous true garbage claim echo media make crunch";
+    //     // let chain = "m/44'/60'/0'/0/0";
+    //     let lang = "english";
+    //     let password = "test";
+    //     let dir = PathBuf::new().join("");
+    //     let keystore = Keystore::new(lang)
+    //         .unwrap()
+    //         .create_root_keystore_with_path_phrase(phrase, "", &dir, password)
+    //         .unwrap();
+
+    //     let address = keystore.get_address().unwrap();
+
+    //     let seed = Keystore::get_seed_keystore(address, &dir, password).unwrap();
+    //     let seed = hex::encode(seed.seed());
+    //     println!("seed: {seed}");
+    // }
 }
