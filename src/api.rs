@@ -4,6 +4,29 @@ use alloy::primitives::Address;
 
 use crate::{keystore::Keystore, language::WordlistWrapper};
 
+/// 生成助记词。
+///
+/// 该函数根据指定的语言生成一个助记词字符串。
+///
+/// # 参数
+///
+/// - `lang`: 指定生成助记词的语言，如 "english"。
+///
+/// # 返回
+///
+/// 如果成功生成助记词，则返回包含助记词的 `Ok(String)`。
+/// 如果出现错误，则返回 `Err(anyhow::Error)`。
+///
+/// # 示例
+///
+/// ```rust
+/// # use your_crate_name::gen_phrase;
+/// # fn main() -> Result<(), anyhow::Error> {
+/// let phrase = gen_phrase("english")?;
+/// println!("Generated phrase: {}", phrase);
+/// # Ok(())
+/// # }
+/// ```
 pub fn gen_phrase(lang: &str) -> Result<String, anyhow::Error> {
     let lang = crate::language::Language::from_str(lang)?;
     Ok(lang.gen_phrase())
