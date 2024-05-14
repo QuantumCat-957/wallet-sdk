@@ -170,11 +170,11 @@ impl Keystore {
     ///     let salt = "salt";
     ///     let address = Address::from_str("0x...")?;
     ///
-    ///     keystore.check_pk(phrase, salt, address)?;
+    ///     keystore.check_address(phrase, salt, address)?;
     ///     Ok(())
     /// }
     /// ```
-    pub(crate) fn check_pk(
+    pub(crate) fn check_address(
         self,
         phrase: &str,
         salt: &str,
@@ -351,10 +351,37 @@ impl Keystore {
         Ok(private_key)
     }
 
+    /// 构建存储路径
+    ///
+    /// 根据提供的存储目录、钱包名、币种类型和账户索引生成存储路径。
+    ///
+    /// # 参数
+    ///
+    /// * `storage_dir` - 存储目录的根路径。
+    /// * `wallet_name` - 钱包名称。
+    /// * `coin_type` - 币种类型（例如，以太坊为60）。
+    /// * `account_index` - 账户索引。
+    ///
+    /// # 返回
+    ///
+    /// 返回构建的存储路径。
+    pub(crate) fn build_storage_path(
+        storage_dir: &str,
+        wallet_name: &str,
+        coin_type: u32,
+        account_index: u32,
+    ) -> PathBuf {
+        let mut storage_path = PathBuf::from(storage_dir);
+        storage_path.push(wallet_name);
+        storage_path.push(format!("coin_{}", coin_type));
+        storage_path.push(format!("account_{}", account_index));
+        storage_path
+    }
+
     // 输入密码打开钱包
     pub(crate) fn open_with_password(
         password: &str,
-        path: &str,
+        path: &PathBuf,
     ) -> Result<Wallet<alloy::signers::k256::ecdsa::SigningKey>, crate::Error> {
         let recovered_wallet = Wallet::decrypt_keystore(path, password)?;
         Ok(recovered_wallet)
@@ -536,7 +563,7 @@ mod test {
         let address = keystore.get_address()?;
 
         // 验证生成的地址是否与提供的地址匹配
-        Keystore::new(lang)?.check_pk(phrase, salt, address)?;
+        Keystore::new(lang)?.check_address(phrase, salt, address)?;
 
         Ok(())
     }
@@ -662,9 +689,7 @@ mod test {
         println!("path: {:?}", keystore_file_path);
         let keystore_file_path = keystore_file_path
             // .join("6dab0ec3-ce31-4d24-ac4a-d4109446eca4")
-            .join("alice.json")
-            .to_string_lossy()
-            .to_string();
+            .join("alice.json");
 
         println!("keystore_file_path: {:?}", keystore_file_path);
         let lang = "english";

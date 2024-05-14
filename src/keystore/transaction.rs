@@ -5,7 +5,7 @@ impl super::Keystore {
     pub async fn transaction(
         self,
         password: &str,
-        path: &str,
+        path: &std::path::PathBuf,
         rpc_url: url::Url,
         to: &str,
         value: usize,
