@@ -6,9 +6,7 @@ pub mod transaction;
 use std::path::PathBuf;
 
 use alloy::{
-    network::{EthereumSigner, TransactionBuilder},
     primitives::Address,
-    providers::Provider as _,
     signers::wallet::{MnemonicBuilder, Wallet},
 };
 use anyhow::anyhow;
@@ -90,6 +88,7 @@ impl Keystore {
         phrase: &str,
         salt: &str,
         path: &PathBuf,
+        derivation_path: &str,
         password: &str,
     ) -> Result<Self, anyhow::Error> {
         let mut rng = rand::thread_rng();
@@ -117,7 +116,8 @@ impl Keystore {
         // let address = secret_key_to_address(&signer);
         // Ok(Wallet::<SigningKey> { signer, address, chain_id: None })
 
-        let name = Self::from_signingkey_to_name(signingkey, "pk");
+        let address = alloy::signers::utils::secret_key_to_address(signingkey);
+        let name = Self::from_address_to_name(address, derivation_path, "pk");
 
         let (pk_wallet, _) = alloy::signers::wallet::Wallet::encrypt_keystore(
             &path,
@@ -126,10 +126,15 @@ impl Keystore {
             password,
             Some(&name),
         )?;
-        let address = pk_wallet.address();
         println!("地址：{}", address);
 
-        let seed_wallet = Keystore::save_seed_keystore(address, seed.as_slice(), path, password)?;
+        let seed_wallet = Keystore::save_seed_keystore(
+            address,
+            derivation_path,
+            seed.as_slice(),
+            path,
+            password,
+        )?;
 
         self.wallet_wrapper = Some(WalletWrapper::Root {
             pk_wallet,
@@ -194,18 +199,10 @@ impl Keystore {
         Ok(())
     }
 
-    fn from_signingkey_to_name(
-        signingkey: &coins_bip32::ecdsa::SigningKey,
-        suffix: &str,
-    ) -> String {
-        let address = alloy::signers::utils::secret_key_to_address(signingkey);
+    fn from_address_to_name(address: Address, derivation_path: &str, suffix: &str) -> String {
         println!("from_signingkey_to_name: {:#?}", address);
-        let name = format!("{}-{}", address, suffix);
-        name
-    }
-
-    fn from_address_to_name(address: Address, suffix: &str) -> String {
-        let name = format!("{}-{}", address, suffix);
+        let hash_name = Self::generate_hashed_filename(address, derivation_path);
+        let name = format!("{}-{}", hash_name, suffix);
         name
     }
 
@@ -351,31 +348,69 @@ impl Keystore {
         Ok(private_key)
     }
 
-    /// 构建存储路径
-    ///
-    /// 根据提供的存储目录、钱包名、币种类型和账户索引生成存储路径。
+    /// 判断派生路径是否为根密钥路径
     ///
     /// # 参数
-    ///
-    /// * `storage_dir` - 存储目录的根路径。
-    /// * `wallet_name` - 钱包名称。
-    /// * `coin_type` - 币种类型（例如，以太坊为60）。
-    /// * `account_index` - 账户索引。
+    /// - `derivation_path`: 派生路径
     ///
     /// # 返回
+    /// 如果是根路径，返回 `true`，否则返回 `false`
+    fn is_root_derivation_path(derivation_path: &str) -> bool {
+        // BIP44 根路径格式: m/44'/coin_type'/account'/change/address_index
+        let root_pattern = regex::Regex::new(r"^m/44'/\d+'/\d+'/?$").unwrap();
+        root_pattern.is_match(derivation_path)
+    }
+
+    /// 构建存储路径，根据派生路径判断是根路径还是子路径
     ///
-    /// 返回构建的存储路径。
+    /// # 参数
+    /// - `storage_dir`: 基础目录
+    /// - `wallet_name`: 钱包名称
+    /// - `account_index`: 账户索引
+    /// - `address`: 以太坊地址
+    /// - `derivation_path`: 派生路径
+    ///
+    /// # 返回
+    /// 返回构建的路径
     pub(crate) fn build_storage_path(
         storage_dir: &str,
         wallet_name: &str,
-        coin_type: u32,
         account_index: u32,
+        // address: Address,
+        derivation_path: &str,
     ) -> PathBuf {
         let mut storage_path = PathBuf::from(storage_dir);
         storage_path.push(wallet_name);
-        storage_path.push(format!("coin_{}", coin_type));
         storage_path.push(format!("account_{}", account_index));
+
+        if Self::is_root_derivation_path(derivation_path) {
+            storage_path.push("root");
+        } else {
+            storage_path.push("subs");
+        }
+
+        // // 根据地址和派生路径生成文件名
+        // let filename = Self::generate_hashed_filename(address, derivation_path);
+        // storage_path.push(filename);
+
         storage_path
+    }
+
+    /// 根据地址和派生路径生成文件名
+    ///
+    /// # 参数
+    /// - `address`: 以太坊地址
+    /// - `derivation_path`: 派生路径
+    ///
+    /// # 返回
+    /// 返回生成的文件名
+    fn generate_hashed_filename(address: Address, derivation_path: &str) -> String {
+        use sha2::{Digest, Sha256};
+        let input = format!("{}_{}", address.to_string(), derivation_path);
+        let mut hasher = Sha256::new();
+        hasher.update(input);
+        let result = hasher.finalize();
+        hex::encode(result)
     }
 
     // 输入密码打开钱包
@@ -450,19 +485,18 @@ mod test {
 
     /// 准备测试环境并生成根密钥库。
     fn setup_test_environment_and_create_keystore(
-        lang: &str,
-        phrase: &str,
-        salt: &str,
-        wallet_name: &str,
-        password: &str,
+        derivation_path: &str,
     ) -> Result<(Keystore, PathBuf), anyhow::Error> {
-        // 获取项目根目录
-        let storage_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?);
-
-        // 创建测试目录
-        if !storage_dir.exists() {
-            fs::create_dir_all(&storage_dir)?;
-        }
+        let crate::api::tests::TestEnv {
+            storage_dir,
+            lang,
+            phrase,
+            salt,
+            wallet_name,
+            coin_type,
+            account_index,
+            password,
+        } = crate::api::tests::setup_test_environment(Some("测试钱包".to_string()), 0)?;
 
         // 定义测试路径
         let path = storage_dir.join(wallet_name);
@@ -474,30 +508,15 @@ mod test {
         fs::create_dir_all(&path)?;
 
         // 创建 Keystore 对象
-        let keystore = Keystore::new(lang)?
-            .create_root_keystore_with_path_phrase(phrase, salt, &path, password)?;
+        let keystore = Keystore::new(&lang)?.create_root_keystore_with_path_phrase(
+            &phrase,
+            &salt,
+            &path,
+            derivation_path,
+            &password,
+        )?;
 
         Ok((keystore, path))
-    }
-
-    /// 打印目录结构
-    fn print_dir_structure(dir: &PathBuf, level: usize) {
-        if let Ok(entries) = fs::read_dir(dir) {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let path = entry.path();
-                    for _ in 0..level {
-                        print!("  ");
-                    }
-                    if path.is_dir() {
-                        println!("{}/", path.file_name().unwrap().to_string_lossy());
-                        print_dir_structure(&path, level + 1);
-                    } else {
-                        println!("{}", path.file_name().unwrap().to_string_lossy());
-                    }
-                }
-            }
-        }
     }
 
     #[test]
@@ -526,10 +545,10 @@ mod test {
         let salt = "salt";
         let wallet_name = "test_wallet";
         let password = "example_password";
+        let derivation_path = "m/44'/60'/0'/0/0";
 
         // 调用公共函数设置测试环境并创建密钥库
-        let (keystore, path) =
-            setup_test_environment_and_create_keystore(lang, phrase, salt, wallet_name, password)?;
+        let (keystore, path) = setup_test_environment_and_create_keystore(derivation_path)?;
 
         // 检查返回值
         assert!(keystore.name.is_some());
@@ -542,7 +561,7 @@ mod test {
 
         // 打印生成的目录结构
         println!("Directory structure of '{}':", path.display());
-        print_dir_structure(&path, 0);
+        crate::api::tests::print_dir_structure(&path, 0);
 
         Ok(())
     }
@@ -555,10 +574,10 @@ mod test {
         let salt = "salt";
         let wallet_name = "test_wallet";
         let password = "example_password";
+        let derivation_path = "m/44'/60'/0'/0/1";
 
         // 调用公共函数设置测试环境并创建密钥库
-        let (keystore, _) =
-            setup_test_environment_and_create_keystore(lang, phrase, salt, wallet_name, password)?;
+        let (keystore, _) = setup_test_environment_and_create_keystore(derivation_path)?;
 
         let address = keystore.get_address()?;
 
@@ -572,10 +591,10 @@ mod test {
     fn test_get_seed_keystore() {
         let address = "0x2A47C7a76Ea6994B16eEEDBfD75845B2bC591fDF";
         let address = address.parse::<Address>().unwrap();
-
+        let derivation_path = "m/44'/60'/0'/0/1";
         let password = "test";
         let dir = PathBuf::new().join("");
-        let seed = Keystore::get_seed_keystore(address, &dir, password).unwrap();
+        let seed = Keystore::get_seed_keystore(address, derivation_path, &dir, password).unwrap();
         let seed = hex::encode(seed.seed());
         println!("seed: {seed}");
     }

@@ -32,73 +32,51 @@ pub fn gen_phrase(lang: &str) -> Result<String, anyhow::Error> {
     Ok(lang.gen_phrase())
 }
 
-/// 生成根密钥。
+/// 生成根密钥库
 ///
-/// 该函数用于生成根密钥，并重新创建根密钥存储。
+/// 这个函数根据提供的语言、助记词、盐、存储目录、钱包名称、账户索引和密码生成一个新的根密钥库。
 ///
 /// # 参数
-///
-/// - `lang`: 使用的语言，如英语或中文。
-/// - `phrase`: 用于生成根密钥的助记词。
-/// - `salt`: 用于加密助记词的盐。
-/// - `storage_dir`: 存储根密钥的路径，由调用者指定的目录。
-/// - `wallet_name`: 钱包名称。
-/// - `coin_type`: 币种类型，比如0代表比特币，60代表以太坊。
-/// - `account_index`: 账户索引，用于生成不同的子地址。
-/// - `password`: 用于加密根密钥的密码。
+/// - `lang`: 语言，用于生成助记词的语言，如 "english"。
+/// - `phrase`: 助记词，用于生成根密钥的助记词字符串。
+/// - `salt`: 盐，用于生成根密钥的盐值。
+/// - `storage_dir`: 存储目录，根密钥库的存储路径。
+/// - `wallet_name`: 钱包名称，用于标识不同的钱包。
+/// - `account_index`: 账户索引，用于区分不同的账户。
+/// - `password`: 密码，用于加密根密钥库。
 ///
 /// # 返回
-///
-/// 如果成功生成并存储根密钥，则返回`Ok(keystore_name)`，其中`keystore_name`是生成的keystore的名称；
-/// 否则返回错误。
-///
-/// # 注意
-///
-/// 在生成新的根密钥前，该存储路径下现有的keystore将被清空。
+/// 返回一个 `Result<String, anyhow::Error>`，表示生成的根密钥库的名称或生成过程中发生的错误。
 ///
 /// # 示例
-///
-/// ```rust
-/// # use your_crate_name::generate_root;
-/// # use std::path::Path;
-/// # fn main() -> Result<(), anyhow::Error> {
-/// let lang = "english";
-/// let phrase = "example phrase";
-/// let salt = "example salt";
-/// let storage_dir = "/path/to/storage";
-/// let wallet_name = "example_wallet";
-/// let coin_type = 60; // 60 是以太坊的 coin_type
-/// let account_index = 0;
-/// let password = "example_password";
-///
-/// let keystore_name = generate_root(
-///     lang,
-///     phrase,
-///     salt,
-///     storage_dir,
-///     wallet_name,
-///     coin_type,
-///     account_index,
-///     password
-/// )?;
-///
-/// println!("Keystore created with name: {}", keystore_name);
-/// # Ok(())
-/// # }
 /// ```
+/// let keystore_name = generate_root(
+///     "english",
+///     "shaft love depth mercy defy cargo strong control eye machine night test",
+///     "salt",
+///     "/path/to/storage",
+///     "example_wallet",
+///     0,
+///     "example_password"
+/// )?;
+/// println!("Generated keystore name: {}", keystore_name);
+/// ```
+///
+/// # 错误
+/// 如果在生成过程中发生任何错误，将返回相应的 `anyhow::Error`。
 pub fn generate_root(
     lang: &str,
     phrase: &str,
     salt: &str,
     storage_dir: &str,
     wallet_name: &str,
-    coin_type: u32,
     account_index: u32,
     password: &str,
 ) -> Result<String, anyhow::Error> {
+    let derivation_path = "m/44'/60'/0'";
     // 构建存储路径
     let storage_path =
-        Keystore::build_storage_path(storage_dir, wallet_name, coin_type, account_index);
+        Keystore::build_storage_path(storage_dir, wallet_name, account_index, derivation_path);
 
     println!("storage_path: {storage_path:?}");
     // 清空该存储路径下的keystore
@@ -113,6 +91,7 @@ pub fn generate_root(
         phrase,
         salt,
         &storage_path,
+        derivation_path,
         password,
     )?;
 
@@ -151,7 +130,6 @@ pub fn reset_root(
     address: &str,
     storage_dir: &str,
     wallet_name: &str,
-    coin_type: u32,
     account_index: u32,
     new_password: &str,
 ) -> Result<Address, anyhow::Error> {
@@ -161,9 +139,10 @@ pub fn reset_root(
     // 验证提供的助记词和盐生成预期的地址
     Keystore::new(lang)?.check_address(phrase, salt, address)?;
 
+    let derivation_path = "m/44'/60'/0'";
     // 构建存储路径
     let storage_path =
-        Keystore::build_storage_path(storage_dir, wallet_name, coin_type, account_index);
+        Keystore::build_storage_path(storage_dir, wallet_name, account_index, derivation_path);
 
     println!("storage_path: {storage_path:?}");
 
@@ -178,6 +157,7 @@ pub fn reset_root(
         phrase,
         salt,
         &storage_path,
+        derivation_path,
         new_password,
     )?;
 
@@ -198,16 +178,27 @@ pub fn set_root_password(
 /// 修改密码
 pub fn set_password(
     address: Address,
+    storage_dir: &str,
+    wallet_name: &str,
+    account_index: u32,
+    derivation_path: &str,
     old_password: &str,
     new_password: &str,
     name: &str,
 ) -> Result<(), anyhow::Error> {
+    // 构建存储路径
+    let storage_path =
+        Keystore::build_storage_path(storage_dir, wallet_name, account_index, derivation_path);
+
     let file_path = address.to_string();
     let pk = Keystore::get_pk_with_password(old_password, &file_path)?;
 
     Keystore::set_password(pk, &file_path, new_password, name)?;
     // TODO: 删除旧keystore
     // let secret = eth_keystore::decrypt_key(keypath, password)?;
+
+    // let pk_filename =
+
     Ok(())
 }
 
@@ -235,14 +226,14 @@ pub fn set_password(
 // }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use anyhow::Result;
     use std::env;
     use std::fs;
     use std::path::{Path, PathBuf};
 
-    fn print_dir_structure(dir: &Path, level: usize) {
+    pub(crate) fn print_dir_structure(dir: &Path, level: usize) {
         if let Ok(entries) = fs::read_dir(dir) {
             for entry in entries {
                 if let Ok(entry) = entry {
@@ -261,10 +252,32 @@ mod tests {
         }
     }
 
-    fn setup_test_environment(
-    ) -> Result<(PathBuf, String, String, String, String, u32, u32, String), anyhow::Error> {
+    pub(crate) struct TestEnv {
+        pub(crate) storage_dir: PathBuf,
+        pub(crate) lang: String,
+        pub(crate) phrase: String,
+        pub(crate) salt: String,
+        pub(crate) wallet_name: String,
+        pub(crate) coin_type: u32,
+        pub(crate) account_index: u32,
+        pub(crate) password: String,
+    }
+
+    fn setup_some_test_environment() -> Result<Vec<TestEnv>, anyhow::Error> {
+        let env = vec![
+            setup_test_environment(Some("钱包A".to_string()), 1)?,
+            setup_test_environment(Some("钱包B".to_string()), 1)?,
+            setup_test_environment(Some("钱包C".to_string()), 1)?,
+        ];
+        Ok(env)
+    }
+
+    pub(crate) fn setup_test_environment(
+        wallet_name: Option<String>,
+        account_index: u32,
+    ) -> Result<TestEnv, anyhow::Error> {
         // 获取项目根目录
-        let storage_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?);
+        let storage_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?).join("test_data");
 
         // 创建测试目录
         if !storage_dir.exists() {
@@ -276,12 +289,11 @@ mod tests {
         let phrase =
             "shaft love depth mercy defy cargo strong control eye machine night test".to_string();
         let salt = "salt".to_string();
-        let wallet_name = "example_wallet".to_string();
+        let wallet_name = wallet_name.unwrap_or("example_wallet".to_string());
         let coin_type = 60; // 60 是以太坊的 coin_type
-        let account_index = 0;
         let password = "example_password".to_string();
 
-        Ok((
+        Ok(TestEnv {
             storage_dir,
             lang,
             phrase,
@@ -290,13 +302,48 @@ mod tests {
             coin_type,
             account_index,
             password,
-        ))
+        })
+    }
+
+    #[test]
+    fn test_setup_some_test_environment() -> Result<()> {
+        for env in setup_some_test_environment()? {
+            let TestEnv {
+                storage_dir,
+                lang,
+                phrase,
+                salt,
+                wallet_name,
+                coin_type,
+                account_index,
+                password,
+            } = env;
+            // 调用 generate_root 函数
+            generate_root(
+                &lang,
+                &phrase,
+                &salt,
+                &storage_dir.to_string_lossy().to_string(),
+                &wallet_name,
+                account_index,
+                &password,
+            )?;
+        }
+        Ok(())
     }
 
     #[test]
     fn test_generate_root() -> Result<()> {
-        let (storage_dir, lang, phrase, salt, wallet_name, coin_type, account_index, password) =
-            setup_test_environment()?;
+        let TestEnv {
+            storage_dir,
+            lang,
+            phrase,
+            salt,
+            wallet_name,
+            coin_type,
+            account_index,
+            password,
+        } = setup_test_environment(None, 0)?;
 
         // 调用 generate_root 函数
         let address = generate_root(
@@ -305,18 +352,18 @@ mod tests {
             &salt,
             &storage_dir.to_string_lossy().to_string(),
             &wallet_name,
-            coin_type,
             account_index,
             &password,
         )?;
         println!("Generated address: {}", address);
 
         // 构建预期路径
-        let mut expected_path = PathBuf::from(&storage_dir);
-        expected_path.push(wallet_name);
-        expected_path.push(format!("coin_{}", coin_type));
-        expected_path.push(format!("account_{}", account_index));
-
+        let expected_path = Keystore::build_storage_path(
+            &storage_dir.to_string_lossy().to_string(),
+            &wallet_name,
+            account_index,
+            "m/44'/60'/0'",
+        );
         println!("expected_path: {:?}", expected_path);
 
         // 确认目录存在
@@ -340,9 +387,18 @@ mod tests {
 
     #[test]
     fn test_reset_root() -> Result<(), anyhow::Error> {
-        let (storage_dir, lang, phrase, salt, wallet_name, coin_type, account_index, password) =
-            setup_test_environment()?;
+        let TestEnv {
+            storage_dir,
+            lang,
+            phrase,
+            salt,
+            wallet_name,
+            coin_type,
+            account_index,
+            password,
+        } = setup_test_environment(None, 0)?;
 
+        let derivation_path = "m/44'/60'/0'";
         // 先生成一个根密钥库
         let keystore_name = generate_root(
             &lang,
@@ -350,7 +406,6 @@ mod tests {
             &salt,
             &storage_dir.to_string_lossy().to_string(),
             &wallet_name,
-            coin_type,
             account_index,
             &password,
         )?;
@@ -358,8 +413,8 @@ mod tests {
         let storage_path = Keystore::build_storage_path(
             &storage_dir.to_string_lossy().to_string(),
             &wallet_name,
-            coin_type,
             account_index,
+            derivation_path,
         )
         .join(&keystore_name);
 
@@ -376,7 +431,6 @@ mod tests {
             &address.to_string(),
             &storage_dir.to_string_lossy().to_string(),
             &wallet_name,
-            coin_type,
             account_index,
             new_password,
         )?;
@@ -384,11 +438,12 @@ mod tests {
         assert_eq!(address, new_address);
 
         // 构建预期路径
-        let mut expected_path = PathBuf::from(&storage_dir);
-        expected_path.push(&wallet_name);
-        expected_path.push(format!("coin_{}", coin_type));
-        expected_path.push(format!("account_{}", account_index));
-
+        let expected_path = Keystore::build_storage_path(
+            &storage_dir.to_string_lossy().to_string(),
+            &wallet_name,
+            account_index,
+            "m/44'/60'/0'",
+        );
         println!("expected_path: {:?}", expected_path);
 
         // 确认目录存在
