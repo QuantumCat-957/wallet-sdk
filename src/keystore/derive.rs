@@ -1,3 +1,5 @@
+use crate::keystore::Keystore;
+
 impl super::Keystore {
     // pub fn derive_child_with_address_and_save(
     //     mut self,
@@ -70,7 +72,7 @@ impl super::Keystore {
         // phrase: &str,
         // salt: &str,
         seed: Vec<u8>,
-        chain: &str,
+        derivation_path: &str,
         path: &str,
         password: &str,
     ) -> Result<
@@ -78,7 +80,7 @@ impl super::Keystore {
         anyhow::Error,
     > {
         let seed_wallet = crate::wallet::SeedWallet::from_seed(seed)?;
-        let derive_key = seed_wallet.derive_path(chain)?;
+        let derive_key = seed_wallet.derive_path(derivation_path)?;
 
         let mut rng = rand::thread_rng();
         // let master_key = self.phrase_to_master_key(phrase, salt)?;
@@ -88,6 +90,11 @@ impl super::Keystore {
         // let master_key = mnemonic.derive_key(chain, Some(salt))?;
 
         let signingkey: &coins_bip32::ecdsa::SigningKey = derive_key.as_ref();
+
+        let address = alloy::signers::utils::secret_key_to_address(&signingkey);
+
+        let name =
+            Keystore::from_address_and_derivation_path_to_name(address, derivation_path, "pk");
 
         let private_key = signingkey.to_bytes();
 
@@ -99,7 +106,7 @@ impl super::Keystore {
             &mut rng,
             private_key,
             password,
-            None,
+            Some(&name),
         )?;
 
         Ok(wallet)

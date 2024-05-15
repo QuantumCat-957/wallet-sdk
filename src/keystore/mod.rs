@@ -117,7 +117,7 @@ impl Keystore {
         // Ok(Wallet::<SigningKey> { signer, address, chain_id: None })
 
         let address = alloy::signers::utils::secret_key_to_address(signingkey);
-        let name = Self::from_address_to_name(address, derivation_path, "pk");
+        let name = Self::from_address_to_name(address, "pk");
 
         let (pk_wallet, _) = alloy::signers::wallet::Wallet::encrypt_keystore(
             &path,
@@ -128,13 +128,7 @@ impl Keystore {
         )?;
         println!("地址：{}", address);
 
-        let seed_wallet = Keystore::save_seed_keystore(
-            address,
-            derivation_path,
-            seed.as_slice(),
-            path,
-            password,
-        )?;
+        let seed_wallet = Keystore::save_seed_keystore(address, seed.as_slice(), path, password)?;
 
         self.wallet_wrapper = Some(WalletWrapper::Root {
             pk_wallet,
@@ -199,10 +193,31 @@ impl Keystore {
         Ok(())
     }
 
-    fn from_address_to_name(address: Address, derivation_path: &str, suffix: &str) -> String {
+    pub(crate) fn from_address_to_name(
+        address: Address,
+        // derivation_path: &str,
+        suffix: &str,
+    ) -> String {
         println!("from_signingkey_to_name: {:#?}", address);
-        let hash_name = Self::generate_hashed_filename(address, derivation_path);
-        let name = format!("{}-{}", hash_name, suffix);
+        // let hash_name = Self::generate_hashed_filename(address, derivation_path);
+        let name = format!("{}-{}", address.to_string(), suffix);
+        name
+    }
+
+    pub(crate) fn from_address_and_derivation_path_to_name(
+        address: Address,
+        derivation_path: &str,
+        suffix: &str,
+    ) -> String {
+        println!("from_signingkey_to_name: {:#?}", address);
+        // let hash_name = Self::generate_hashed_filename(address, derivation_path);
+        // let name = format!("{}-{}", address.to_string(), suffix);
+        let name = format!(
+            "{}-{}-{}",
+            address,
+            derivation_path.replace("/", "_"),
+            suffix
+        );
         name
     }
 
@@ -404,9 +419,10 @@ impl Keystore {
     ///
     /// # 返回
     /// 返回生成的文件名
-    fn generate_hashed_filename(address: Address, derivation_path: &str) -> String {
+    pub(crate) fn generate_hashed_filename(address: Address, derivation_path: &str) -> String {
         use sha2::{Digest, Sha256};
-        let input = format!("{}_{}", address.to_string(), derivation_path);
+        // let input = format!("{}_{}", address.to_string(), derivation_path);
+        let input = format!("{}", address.to_string());
         let mut hasher = Sha256::new();
         hasher.update(input);
         let result = hasher.finalize();
@@ -542,10 +558,11 @@ mod test {
         // 测试参数
         let lang = "english";
         let phrase = "shaft love depth mercy defy cargo strong control eye machine night test";
-        let salt = "salt";
+        let salt = "";
         let wallet_name = "test_wallet";
         let password = "example_password";
-        let derivation_path = "m/44'/60'/0'/0/0";
+        // let derivation_path = "m/44'/60'/0'/0/0";
+        let derivation_path = "m/44'/60'/0'";
 
         // 调用公共函数设置测试环境并创建密钥库
         let (keystore, path) = setup_test_environment_and_create_keystore(derivation_path)?;
@@ -594,7 +611,7 @@ mod test {
         let derivation_path = "m/44'/60'/0'/0/1";
         let password = "test";
         let dir = PathBuf::new().join("");
-        let seed = Keystore::get_seed_keystore(address, derivation_path, &dir, password).unwrap();
+        let seed = Keystore::get_seed_keystore(address, &dir, password).unwrap();
         let seed = hex::encode(seed.seed());
         println!("seed: {seed}");
     }

@@ -1,8 +1,11 @@
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use alloy::primitives::Address;
 
-use crate::{keystore::Keystore, language::WordlistWrapper};
+use crate::{extract_address_from_filename, keystore::Keystore, language::WordlistWrapper};
 
 /// 生成助记词。
 ///
@@ -196,27 +199,64 @@ pub fn set_password(
 }
 
 /// 派生子密钥
-// pub fn derive(password: &str) -> Result<Address, anyhow::Error> {
-//     // 找到根keystore文件，根密钥只用来派生
-//     let root_path = "";
-//     let address = "";
-//     let address = address.parse::<Address>()?;
+pub fn derive_subkey(
+    wallet_tree: &crate::WalletTree,
+    storage_dir: &str,
+    wallet_name: &str,
+    root_password: &str,
+    derive_password: &str,
+) -> Result<Address, anyhow::Error> {
+    // if let Some(wallet_brach) = wallet_tree.get(wallet_name){
+    //     let root_seed =
+    // }
+    let storage_dir = Path::new(storage_dir);
+    let wallet_tree = crate::traverse_directory_structure(storage_dir)?;
 
-//     let seed_wallet = Keystore::get_seed_keystore(address, root_path, password)?;
+    let root_dir = wallet_tree.get_root_dir(wallet_name);
+    let subs_dir = wallet_tree.get_subs_dir(wallet_name);
+    let wallet = wallet_tree.get_wallet(wallet_name)?;
 
-//     let chain_code = "";
-//     // 获取根seed
-//     let seed_wallet = Keystore::derive_child_with_seed_and_chain_code_save(
-//         seed_wallet.seed,
-//         chain_code,
-//         root_path,
-//         password,
-//     )?;
+    // let pk_filename = wallet.get_root_pk_filename();
+    let seed_wallet = Keystore::get_seed_keystore(wallet.root_address, &root_dir, root_password)?;
+    println!("seed_wallet: {seed_wallet:#?}");
 
-//     let address = seed_wallet.address();
+    let chain_code = wallet.get_next_derivation_path();
 
-//     Ok(address)
-// }
+    let seed_wallet = Keystore::derive_child_with_seed_and_chain_code_save(
+        seed_wallet.seed,
+        &chain_code,
+        subs_dir.to_string_lossy().to_string().as_str(),
+        derive_password,
+    )?;
+    // 找到根keystore文件，根密钥只用来派生
+    // let derivation_path = "m/44'/60'/0'";
+    // let root_storage_path = Keystore::build_storage_path(storage_dir, wallet_name, derivation_path);
+
+    // let root_seed_filename = fs::read_dir(&root_storage_path)?
+    //     .filter_map(Result::ok)
+    //     .find(|e| e.file_name().to_string_lossy().ends_with("-seed"))
+    //     .map(|e| e.file_name().to_string_lossy().to_string())
+    //     .ok_or_else(|| anyhow::anyhow!("No -seed file found in root directory"))?;
+
+    // let address = extract_address_from_filename(&root_seed_filename).unwrap();
+    // let address = address.parse::<Address>()?;
+
+    // let seed_wallet = Keystore::get_seed_keystore(address, &root_storage_path, password)?;
+
+    // let chain_code = "";
+    // // let
+    // // 获取根seed
+    // let seed_wallet = Keystore::derive_child_with_seed_and_chain_code_save(
+    //     seed_wallet.seed,
+    //     chain_code,
+    //     root_path,
+    //     password,
+    // )?;
+
+    let address = seed_wallet.address();
+
+    Ok(address)
+}
 
 #[cfg(test)]
 pub(crate) mod tests {
@@ -224,7 +264,10 @@ pub(crate) mod tests {
     use anyhow::Result;
     use std::env;
     use std::fs;
+    use std::fs::File;
+    use std::io::Write as _;
     use std::path::{Path, PathBuf};
+    use tempfile::tempdir;
 
     pub(crate) fn print_dir_structure(dir: &Path, level: usize) {
         if let Ok(entries) = fs::read_dir(dir) {
@@ -281,7 +324,7 @@ pub(crate) mod tests {
         let lang = "english".to_string();
         let phrase =
             "shaft love depth mercy defy cargo strong control eye machine night test".to_string();
-        let salt = "salt".to_string();
+        let salt = "".to_string();
         let wallet_name = wallet_name.unwrap_or("example_wallet".to_string());
         let coin_type = 60; // 60 是以太坊的 coin_type
         let password = "example_password".to_string();
@@ -449,6 +492,54 @@ pub(crate) mod tests {
         let new_root_wallet = Keystore::open_with_password(new_password, &keystore_file)?;
         assert_eq!(new_root_wallet.address(), new_address);
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_derive_subkey() -> Result<(), anyhow::Error> {
+        let TestEnv {
+            storage_dir,
+            lang,
+            phrase,
+            salt,
+            wallet_name,
+            coin_type,
+            account_index,
+            password,
+        } = setup_test_environment(None, 0)?;
+
+        // 创建临时目录结构
+        let storage_dir = tempfile::tempdir_in(storage_dir)?;
+        let storage_dir = storage_dir.path();
+
+        let keystore_name = generate_root(
+            &lang,
+            &phrase,
+            &salt,
+            &storage_dir.to_string_lossy().to_string(),
+            &wallet_name,
+            &password,
+        )?;
+
+        println!("keystore_name: {keystore_name}");
+        // 执行目录结构遍历
+        let wallet_tree = crate::traverse_directory_structure(&storage_dir)?;
+        print_dir_structure(&storage_dir, 0);
+
+        // 测试派生子密钥
+        let address = derive_subkey(
+            &wallet_tree,
+            storage_dir.to_str().unwrap(),
+            &wallet_name,
+            &password,
+            "password123",
+        )?;
+
+        // 验证派生的地址是否符合预期
+        assert_eq!(
+            address.to_string(),
+            "0xA933b676bE829a8203d8AA7501BD2A3671C77587"
+        );
         Ok(())
     }
 }
