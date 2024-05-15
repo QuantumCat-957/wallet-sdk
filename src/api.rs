@@ -1,11 +1,13 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{fs, path::Path};
 
 use alloy::primitives::Address;
 
-use crate::{extract_address_from_filename, keystore::Keystore, language::WordlistWrapper};
+use crate::keystore::Keystore;
+
+pub fn init_resource(root: &str) -> Result<&crate::WalletTree, anyhow::Error> {
+    let root = Path::new(root);
+    crate::WALLET_TREE.get_or_try_init(|| crate::traverse_directory_structure(root))
+}
 
 /// 生成助记词。
 ///
