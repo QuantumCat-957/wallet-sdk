@@ -4,9 +4,32 @@ use alloy::primitives::Address;
 
 use crate::keystore::Keystore;
 
-pub fn init_resource(root: &str) -> Result<&crate::WalletTree, anyhow::Error> {
+/// 初始化资源并生成 `WalletTree`
+///
+/// 该函数会遍历指定目录结构，生成 `WalletTree` 并将其存储在全局静态变量 `WALLET_TREE` 中。
+/// 如果 `WALLET_TREE` 已经初始化，则直接返回现有的 `WalletTree`。
+///
+/// # 参数
+///
+/// * `root` - 包含钱包数据的根目录路径。
+///
+/// # 返回
+///
+/// 如果成功，返回对 `WalletTree` 的不可变引用。
+///
+/// # 错误
+///
+/// 如果遍历目录结构时出错，或者 `WalletTree` 初始化失败，会返回一个 `anyhow::Error`。
+///
+/// # 示例
+///
+/// ```rust
+/// let wallet_tree = init_resource("/path/to/wallets")?;
+/// ```
+pub fn init_resource(root: &str) -> Result<(), anyhow::Error> {
     let root = Path::new(root);
-    crate::WALLET_TREE.get_or_try_init(|| crate::traverse_directory_structure(root))
+    crate::WALLET_TREE.get_or_try_init(|| crate::traverse_directory_structure(root))?;
+    Ok(())
 }
 
 /// 生成助记词。

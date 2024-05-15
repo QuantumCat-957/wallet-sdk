@@ -219,8 +219,6 @@ pub(crate) fn extract_address_and_path_from_filename(filename: &str) -> Option<(
 
 #[cfg(test)]
 mod tests {
-    use crate::api::init_resource;
-
     use super::*;
     use std::fs::{self, File};
     use std::io::Write;
@@ -272,8 +270,10 @@ mod tests {
 
         let dir = &root_dir.to_string_lossy().to_string();
 
-        let wallet_tree = init_resource(dir)?;
-
+        let wallet_tree = {
+            let root = Path::new(dir);
+            crate::WALLET_TREE.get_or_try_init(|| crate::traverse_directory_structure(root))?
+        };
         // 执行目录结构遍历
         let traverse_wallet_tree = traverse_directory_structure(root_dir)?;
 
