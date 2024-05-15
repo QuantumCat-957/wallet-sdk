@@ -42,7 +42,6 @@ pub fn gen_phrase(lang: &str) -> Result<String, anyhow::Error> {
 /// - `salt`: 盐，用于生成根密钥的盐值。
 /// - `storage_dir`: 存储目录，根密钥库的存储路径。
 /// - `wallet_name`: 钱包名称，用于标识不同的钱包。
-/// - `account_index`: 账户索引，用于区分不同的账户。
 /// - `password`: 密码，用于加密根密钥库。
 ///
 /// # 返回
@@ -56,7 +55,6 @@ pub fn gen_phrase(lang: &str) -> Result<String, anyhow::Error> {
 ///     "salt",
 ///     "/path/to/storage",
 ///     "example_wallet",
-///     0,
 ///     "example_password"
 /// )?;
 /// println!("Generated keystore name: {}", keystore_name);
@@ -70,13 +68,11 @@ pub fn generate_root(
     salt: &str,
     storage_dir: &str,
     wallet_name: &str,
-    account_index: u32,
     password: &str,
 ) -> Result<String, anyhow::Error> {
     let derivation_path = "m/44'/60'/0'";
     // 构建存储路径
-    let storage_path =
-        Keystore::build_storage_path(storage_dir, wallet_name, account_index, derivation_path);
+    let storage_path = Keystore::build_storage_path(storage_dir, wallet_name, derivation_path);
 
     println!("storage_path: {storage_path:?}");
     // 清空该存储路径下的keystore
@@ -130,7 +126,6 @@ pub fn reset_root(
     address: &str,
     storage_dir: &str,
     wallet_name: &str,
-    account_index: u32,
     new_password: &str,
 ) -> Result<Address, anyhow::Error> {
     // 解析提供的地址
@@ -141,8 +136,7 @@ pub fn reset_root(
 
     let derivation_path = "m/44'/60'/0'";
     // 构建存储路径
-    let storage_path =
-        Keystore::build_storage_path(storage_dir, wallet_name, account_index, derivation_path);
+    let storage_path = Keystore::build_storage_path(storage_dir, wallet_name, derivation_path);
 
     println!("storage_path: {storage_path:?}");
 
@@ -187,8 +181,7 @@ pub fn set_password(
     name: &str,
 ) -> Result<(), anyhow::Error> {
     // 构建存储路径
-    let storage_path =
-        Keystore::build_storage_path(storage_dir, wallet_name, account_index, derivation_path);
+    let storage_path = Keystore::build_storage_path(storage_dir, wallet_name, derivation_path);
 
     let file_path = address.to_string();
     let pk = Keystore::get_pk_with_password(old_password, &file_path)?;
@@ -325,7 +318,6 @@ pub(crate) mod tests {
                 &salt,
                 &storage_dir.to_string_lossy().to_string(),
                 &wallet_name,
-                account_index,
                 &password,
             )?;
         }
@@ -352,7 +344,6 @@ pub(crate) mod tests {
             &salt,
             &storage_dir.to_string_lossy().to_string(),
             &wallet_name,
-            account_index,
             &password,
         )?;
         println!("Generated address: {}", address);
@@ -361,7 +352,6 @@ pub(crate) mod tests {
         let expected_path = Keystore::build_storage_path(
             &storage_dir.to_string_lossy().to_string(),
             &wallet_name,
-            account_index,
             "m/44'/60'/0'",
         );
         println!("expected_path: {:?}", expected_path);
@@ -406,14 +396,12 @@ pub(crate) mod tests {
             &salt,
             &storage_dir.to_string_lossy().to_string(),
             &wallet_name,
-            account_index,
             &password,
         )?;
         println!("Generated keystore_name for reset: {}", keystore_name);
         let storage_path = Keystore::build_storage_path(
             &storage_dir.to_string_lossy().to_string(),
             &wallet_name,
-            account_index,
             derivation_path,
         )
         .join(&keystore_name);
@@ -431,7 +419,6 @@ pub(crate) mod tests {
             &address.to_string(),
             &storage_dir.to_string_lossy().to_string(),
             &wallet_name,
-            account_index,
             new_password,
         )?;
         println!("New generated address: {}", new_address);
@@ -441,7 +428,6 @@ pub(crate) mod tests {
         let expected_path = Keystore::build_storage_path(
             &storage_dir.to_string_lossy().to_string(),
             &wallet_name,
-            account_index,
             "m/44'/60'/0'",
         );
         println!("expected_path: {:?}", expected_path);

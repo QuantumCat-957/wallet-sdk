@@ -375,13 +375,13 @@ impl Keystore {
     pub(crate) fn build_storage_path(
         storage_dir: &str,
         wallet_name: &str,
-        account_index: u32,
+        // account_index: u32,
         // address: Address,
         derivation_path: &str,
     ) -> PathBuf {
         let mut storage_path = PathBuf::from(storage_dir);
         storage_path.push(wallet_name);
-        storage_path.push(format!("account_{}", account_index));
+        // storage_path.push(format!("account_{}", account_index));
 
         if Self::is_root_derivation_path(derivation_path) {
             storage_path.push("root");

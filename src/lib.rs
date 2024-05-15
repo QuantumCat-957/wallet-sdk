@@ -83,9 +83,9 @@ pub type AccountDirectory = HashMap<String, (String, String)>;
 // }
 
 /// 钱包
-///    账户
 ///       根              子
-///    pk    seed         pk  
+///    pk    seed       pk  pk
+///                      
 
 // pub fn print_files_in_directory(dir: &std::path::Path) {
 //     let mut wallet_tree = WalletDirectory::new();
