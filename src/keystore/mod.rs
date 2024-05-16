@@ -3,7 +3,7 @@ pub mod seed;
 pub mod signature;
 pub mod transaction;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use alloy::{
     primitives::Address,
@@ -88,7 +88,6 @@ impl Keystore {
         phrase: &str,
         salt: &str,
         path: &PathBuf,
-        derivation_path: &str,
         password: &str,
     ) -> Result<Self, anyhow::Error> {
         let mut rng = rand::thread_rng();
@@ -223,19 +222,60 @@ impl Keystore {
 
     // 设置密码
     pub(crate) fn set_password(
-        pk: Vec<u8>,
-        path: &str,
-        password: &str,
-        name: &str,
+        wallet_name: &str,
+        address: Address,
+        old_password: &str,
+        new_password: &str,
     ) -> Result<(), anyhow::Error> {
-        let mut rng = rand::thread_rng();
-        let (_, _) = alloy::signers::wallet::Wallet::encrypt_keystore(
-            path,
-            &mut rng,
-            pk.as_slice(),
-            password,
-            Some(name),
-        )?;
+        let wallet_tree = crate::WalletTreeManager::get_wallet_tree()?;
+        let wallet = wallet_tree.get_wallet_branch(wallet_name)?;
+        let wallet_type = wallet
+            .find_with_address(address)
+            .ok_or(anyhow::anyhow!("No wallet"))?;
+
+        match wallet_type {
+            crate::WalletType::Root(_) => {
+                let root_dir = wallet_tree.get_root_dir(wallet_name);
+                let pk = Keystore::get_pk_with_password(old_password, &root_dir)?;
+                let seed = Keystore::get_seed_with_password(old_password, &root_dir)?;
+
+                let pk_filename = wallet.get_root_pk_filename();
+                let seed_filename = wallet.get_root_seed_filename();
+
+                let mut rng = rand::thread_rng();
+                let (_, _) = alloy::signers::wallet::Wallet::encrypt_keystore(
+                    &root_dir,
+                    &mut rng,
+                    pk.as_slice(),
+                    new_password,
+                    Some(&pk_filename),
+                )?;
+
+                let (_, _) = SeedWallet::encrypt_keystore(
+                    &root_dir,
+                    &mut rng,
+                    seed.as_slice(),
+                    new_password,
+                    Some(&seed_filename),
+                )?;
+            }
+            crate::WalletType::Subs(_) => {
+                let subs_dir = wallet_tree.get_subs_dir(wallet_name);
+                let pk = Keystore::get_pk_with_password(old_password, &subs_dir)?;
+
+                let pk_filename = wallet.get_root_pk_filename();
+
+                let mut rng = rand::thread_rng();
+                let (_, _) = alloy::signers::wallet::Wallet::encrypt_keystore(
+                    &subs_dir,
+                    &mut rng,
+                    pk.as_slice(),
+                    new_password,
+                    Some(&pk_filename),
+                )?;
+            }
+        }
+
         Ok(())
     }
 
@@ -347,13 +387,21 @@ impl Keystore {
         Ok(private_key)
     }
 
-    // 输入密码打开钱包
-    pub(crate) fn get_pk_with_password(
+    pub(crate) fn get_seed_with_password<P: AsRef<Path>>(
         password: &str,
-        path: &str,
+        path: P,
+    ) -> Result<Vec<u8>, anyhow::Error> {
+        let recovered_wallet = SeedWallet::decrypt_keystore(path, password)?;
+        Ok(recovered_wallet.into_seed())
+    }
+
+    // 输入密码打开钱包
+    pub(crate) fn get_pk_with_password<P: AsRef<Path>>(
+        password: &str,
+        path: P,
     ) -> Result<Vec<u8>, anyhow::Error> {
         // let secret = eth_keystore::decrypt_key(path, password)?;
-        let recovered_wallet = Wallet::decrypt_keystore(path, password)?;
+        let recovered_wallet = Wallet::decrypt_keystore(path.as_ref(), password)?;
 
         let key = recovered_wallet.signer().to_bytes();
         let private_key = key.to_vec();
@@ -393,7 +441,7 @@ impl Keystore {
         // address: Address,
         derivation_path: &str,
     ) -> Result<PathBuf, anyhow::Error> {
-        let mut storage_path = crate::WalletTree::get_wallet_dir()?;
+        let mut storage_path = crate::WalletTreeManager::get_wallet_dir()?;
 
         storage_path.push(wallet_name);
         // storage_path.push(format!("account_{}", account_index));
@@ -481,7 +529,7 @@ mod test {
     use std::{
         env,
         fs::{self, read_to_string},
-        path::PathBuf,
+        path::{Path, PathBuf},
     };
 
     use alloy::{
@@ -495,15 +543,20 @@ mod test {
     use secp256k1::Secp256k1;
     use tempfile::tempdir;
 
-    use crate::keystore::WalletWrapper;
+    use crate::{
+        api::tests::{setup_test_environment, TestEnv},
+        keystore::WalletWrapper,
+        WalletTree, WalletTreeManager,
+    };
 
     use super::Keystore;
 
     /// 准备测试环境并生成根密钥库。
     fn setup_test_environment_and_create_keystore(
-        derivation_path: &str,
-    ) -> Result<(Keystore, PathBuf), anyhow::Error> {
-        let crate::api::tests::TestEnv {
+    ) -> Result<(TestEnv, Keystore, PathBuf), anyhow::Error> {
+        let test =
+            crate::api::tests::setup_test_environment(Some("测试钱包".to_string()), 0, false)?;
+        let TestEnv {
             // storage_dir,
             lang,
             phrase,
@@ -512,11 +565,11 @@ mod test {
             coin_type,
             account_index,
             password,
-        } = crate::api::tests::setup_test_environment(Some("测试钱包".to_string()), 0, false)?;
+        } = &test;
 
-        // 定义测试路径
-        let storage_dir = crate::WalletTree::get_wallet_dir()?;
-        let path = storage_dir.join(wallet_name);
+        let derivation_path = "m/44'/60'/0'";
+        // 构建存储路径
+        let path = Keystore::build_storage_path(wallet_name, derivation_path)?;
 
         // 如果路径存在，清空目录
         if path.exists() {
@@ -525,15 +578,12 @@ mod test {
         fs::create_dir_all(&path)?;
 
         // 创建 Keystore 对象
-        let keystore = Keystore::new(&lang)?.create_root_keystore_with_path_phrase(
-            &phrase,
-            &salt,
-            &path,
-            derivation_path,
-            &password,
-        )?;
+        println!("path: {path:?}");
+        let keystore = Keystore::new(&lang)?
+            .create_root_keystore_with_path_phrase(&phrase, &salt, &path, &password)?;
 
-        Ok((keystore, path))
+        crate::api::derive_subkey(wallet_name, password, password)?;
+        Ok((test, keystore, path))
     }
 
     #[test]
@@ -556,17 +606,11 @@ mod test {
 
     #[test]
     fn test_create_root_keystore_with_path_phrase() -> Result<(), anyhow::Error> {
-        // 测试参数
-        let lang = "english";
-        let phrase = "shaft love depth mercy defy cargo strong control eye machine night test";
-        let salt = "";
-        let wallet_name = "test_wallet";
-        let password = "example_password";
         // let derivation_path = "m/44'/60'/0'/0/0";
-        let derivation_path = "m/44'/60'/0'";
+        // let derivation_path = "m/44'/60'/0'";
 
         // 调用公共函数设置测试环境并创建密钥库
-        let (keystore, path) = setup_test_environment_and_create_keystore(derivation_path)?;
+        let (_, keystore, path) = setup_test_environment_and_create_keystore()?;
 
         // 检查返回值
         assert!(keystore.name.is_some());
@@ -589,13 +633,11 @@ mod test {
         // 测试参数
         let lang = "english";
         let phrase = "shaft love depth mercy defy cargo strong control eye machine night test";
-        let salt = "salt";
-        let wallet_name = "test_wallet";
-        let password = "example_password";
-        let derivation_path = "m/44'/60'/0'/0/1";
+        let salt = "";
+        // let derivation_path = "m/44'/60'/0'/0/1";
 
         // 调用公共函数设置测试环境并创建密钥库
-        let (keystore, _) = setup_test_environment_and_create_keystore(derivation_path)?;
+        let (_, keystore, _) = setup_test_environment_and_create_keystore()?;
 
         let address = keystore.get_address()?;
 
@@ -620,26 +662,66 @@ mod test {
     #[test]
     fn test_decode() {
         let path = "7dcc4fe1-ea67-48d5-b086-b37cc93e4f32";
+        let path = Path::new(path);
         let _res = Keystore::get_pk_with_password("test", path);
     }
 
     #[test]
-    fn test_set_password() {
-        let path = "7dcc4fe1-ea67-48d5-b086-b37cc93e4f32";
-        let old_password = "test";
-        let new_password = "new";
-        let pk = Keystore::get_pk_with_password(old_password, path).unwrap();
-        // let pk = pk.as_slice();
-        let pk_str = alloy::hex::encode(&pk);
-        println!("取出密钥： {pk_str}");
+    fn test_set_password() -> Result<(), anyhow::Error> {
+        let (env, keystore, path) = setup_test_environment_and_create_keystore()?;
 
-        let _res = Keystore::set_password(pk, "", &new_password, "new_keystore");
-        println!("_res: {_res:?}");
+        let TestEnv {
+            lang,
+            phrase,
+            salt,
+            wallet_name,
+            coin_type,
+            account_index,
+            password,
+        } = env;
 
-        let path = "new_keystore";
-        let pk = Keystore::get_pk_with_password(new_password, path).unwrap();
-        let pk_str = alloy::hex::encode(pk);
-        println!("设置成功，取出密钥： {pk_str}");
+        let wallet_tree = WalletTreeManager::get_wallet_tree()?;
+
+        println!("[test_set_password] wallet_tree: {wallet_tree:#?}");
+        let wallet = wallet_tree.get_wallet_branch(&wallet_name)?;
+        let root_address = keystore.get_address()?;
+
+        let sub_address = wallet
+            .accounts
+            .clone()
+            .pop_first()
+            .map(|(_, address)| address)
+            .unwrap();
+        let root_dir = wallet_tree.get_root_dir(&wallet_name);
+        let subs_dir = wallet_tree.get_subs_dir(&wallet_name);
+
+        let old_root_pk = Keystore::get_pk_with_password(&password, &root_dir).unwrap();
+        let old_sub_pk = Keystore::get_pk_with_password(&password, &subs_dir).unwrap();
+
+        let old_root_pk_str = alloy::hex::encode(old_root_pk);
+        let old_sub_pk_str = alloy::hex::encode(old_sub_pk);
+        println!("取出旧的根密钥： {old_root_pk_str}");
+        println!("取出旧的子密钥： {old_sub_pk_str}");
+        // let path = "7dcc4fe1-ea67-48d5-b086-b37cc93e4f32";
+        // let old_password = "example_password";
+        let new_password = "new_password";
+
+        // 设置根密码
+        Keystore::set_password(&wallet_name, root_address, &password, new_password)?;
+
+        // 设置子密码
+        Keystore::set_password(&wallet_name, sub_address, &password, new_password)?;
+
+        // let path = "new_keystore";
+
+        let root_pk = Keystore::get_pk_with_password(new_password, root_dir).unwrap();
+        let sub_pk = Keystore::get_pk_with_password(new_password, subs_dir).unwrap();
+        let root_pk_str = alloy::hex::encode(root_pk);
+        let sub_pk_str = alloy::hex::encode(sub_pk);
+        println!("设置根成功，取出密钥： {root_pk_str}");
+        println!("设置根成功，取出密钥： {sub_pk_str}");
+
+        Ok(())
     }
 
     #[test]
