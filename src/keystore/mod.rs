@@ -388,13 +388,13 @@ impl Keystore {
     /// # 返回
     /// 返回构建的路径
     pub(crate) fn build_storage_path(
-        storage_dir: &str,
         wallet_name: &str,
         // account_index: u32,
         // address: Address,
         derivation_path: &str,
-    ) -> PathBuf {
-        let mut storage_path = PathBuf::from(storage_dir);
+    ) -> Result<PathBuf, anyhow::Error> {
+        let mut storage_path = crate::WalletTree::get_wallet_dir()?;
+
         storage_path.push(wallet_name);
         // storage_path.push(format!("account_{}", account_index));
 
@@ -408,7 +408,7 @@ impl Keystore {
         // let filename = Self::generate_hashed_filename(address, derivation_path);
         // storage_path.push(filename);
 
-        storage_path
+        Ok(storage_path)
     }
 
     /// 根据地址和派生路径生成文件名
@@ -504,7 +504,7 @@ mod test {
         derivation_path: &str,
     ) -> Result<(Keystore, PathBuf), anyhow::Error> {
         let crate::api::tests::TestEnv {
-            storage_dir,
+            // storage_dir,
             lang,
             phrase,
             salt,
@@ -512,9 +512,10 @@ mod test {
             coin_type,
             account_index,
             password,
-        } = crate::api::tests::setup_test_environment(Some("测试钱包".to_string()), 0)?;
+        } = crate::api::tests::setup_test_environment(Some("测试钱包".to_string()), 0, false)?;
 
         // 定义测试路径
+        let storage_dir = crate::WalletTree::get_wallet_dir()?;
         let path = storage_dir.join(wallet_name);
 
         // 如果路径存在，清空目录

@@ -29,7 +29,23 @@ pub struct WalletTree {
 }
 
 impl WalletTree {
-    pub(crate) fn get_wallet(&self, wallet_name: &str) -> Result<&WalletBranch, anyhow::Error> {
+    pub fn get_wallet_tree() -> Result<&'static WalletTree, anyhow::Error> {
+        WALLET_TREE
+            .get()
+            .ok_or(anyhow::anyhow!("Wallet tree not initialized"))
+    }
+
+    pub fn get_wallet_dir() -> Result<PathBuf, anyhow::Error> {
+        WALLET_TREE
+            .get()
+            .map(|tree| tree.dir.to_owned())
+            .ok_or(anyhow::anyhow!("Wallet tree not initialized"))
+    }
+
+    pub(crate) fn get_wallet_branch(
+        &self,
+        wallet_name: &str,
+    ) -> Result<&WalletBranch, anyhow::Error> {
         self.tree
             .get(wallet_name)
             .ok_or(anyhow::anyhow!("No wallet"))
@@ -151,6 +167,8 @@ pub fn traverse_directory_structure(root: &Path) -> Result<WalletTree, anyhow::E
             if !subs_dir.exists() {
                 fs::create_dir_all(&subs_dir)?;
             }
+
+            println!("root_dir: {root_dir:?}");
 
             let pk_filename = fs::read_dir(&root_dir)?
                 .filter_map(Result::ok)
