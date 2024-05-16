@@ -43,6 +43,19 @@ impl WalletTreeManager {
         Ok(self)
     }
 
+    pub fn fresh() -> Result<(), anyhow::Error> {
+        let manager = WALLET_TREE_MANAGER
+            .get()
+            .ok_or(anyhow::anyhow!("Wallet tree not initialized"))?;
+        let root = Self::get_wallet_dir()?;
+        println!("[fresh] root: {root:?}");
+        let root_path = Path::new(&root);
+        let wallet_tree = Box::new(traverse_directory_structure(root_path)?);
+        let wallet_tree_ptr = Box::into_raw(wallet_tree);
+        manager.wallet_tree.store(wallet_tree_ptr, Ordering::SeqCst);
+        Ok(())
+    }
+
     pub fn get_wallet_tree() -> Result<Arc<WalletTree>, anyhow::Error> {
         let manager = WALLET_TREE_MANAGER
             .get()
@@ -129,10 +142,12 @@ pub(crate) enum WalletType {
 impl WalletBranch {
     // 根据文件名解析并添加密钥
     pub fn add_key_from_filename(&mut self, filename: &str) -> Result<(), anyhow::Error> {
-        if let Some((derivation_path, address)) = extract_address_and_path_from_filename(filename) {
+        if let Some((address, derivation_path)) = extract_address_and_path_from_filename(filename) {
             println!("derivation_path: {derivation_path}, address: {address}");
             let address = address.parse()?;
-            self.accounts.insert(derivation_path, address);
+            let derivation_path = percent_encoding::percent_decode_str(&derivation_path);
+            self.accounts
+                .insert(derivation_path.decode_utf8()?.to_string(), address);
         }
 
         Ok(())
@@ -168,6 +183,24 @@ impl WalletBranch {
         keystore::Keystore::from_address_to_name(self.root_address, "seed")
     }
 
+    pub(crate) fn get_sub_pk_filename(
+        &self,
+        address: alloy::primitives::Address,
+    ) -> Result<String, anyhow::Error> {
+        let chain = self
+            .accounts
+            .iter()
+            .find(|(_, a)| a == &&address)
+            .map(|(chain, _)| chain)
+            .ok_or(anyhow::anyhow!("File not found"))?;
+
+        // let chain_decode =
+        //     percent_encoding::percent_encode(chain.as_bytes(), percent_encoding::NON_ALPHANUMERIC)
+        //         .to_string();
+        // println!("[get_sub_pk_filename] chain_decode: {chain_decode}");
+        Ok(keystore::Keystore::from_address_and_derivation_path_to_name(address, chain, "pk"))
+    }
+
     pub(crate) fn get_next_derivation_path(&self) -> String {
         // 找到所有现有的派生路径
         let mut indices: Vec<u32> = self
@@ -175,7 +208,7 @@ impl WalletBranch {
             .values()
             .map(|address| address.to_string())
             .filter_map(|path| {
-                println!("path: {path}");
+                println!("[get_next_derivation_path] path: {path}");
                 if path.starts_with("m/44'/60'/0'/0/") {
                     path.split('/').last()?.parse::<u32>().ok()
                 } else {
@@ -271,6 +304,8 @@ pub fn traverse_directory_structure(root: &Path) -> Result<WalletTree, anyhow::E
             for subs_entry in fs::read_dir(subs_dir)? {
                 let subs_entry = subs_entry?;
                 let subs_path = subs_entry.path();
+                println!("[traverse_directory_structure] subs_path: {subs_path:?}");
+
                 if subs_path.is_file()
                     && subs_path
                         .file_name()
@@ -278,9 +313,10 @@ pub fn traverse_directory_structure(root: &Path) -> Result<WalletTree, anyhow::E
                         .to_string_lossy()
                         .ends_with("-pk")
                 {
-                    if let Err(_) = wallet_branch.add_key_from_filename(
+                    if let Err(e) = wallet_branch.add_key_from_filename(
                         &subs_path.file_name().unwrap().to_string_lossy().to_string(),
                     ) {
+                        println!("[traverse_directory_structure] subs error: {e}");
                         continue;
                     };
                     // let derivation_path =
@@ -309,7 +345,9 @@ pub(crate) fn extract_address_and_path_from_filename(filename: &str) -> Option<(
     let parts: Vec<&str> = filename.split('-').collect();
     if parts.len() >= 3 {
         let address = parts[0].to_string();
-        let derivation_path = parts[1..parts.len() - 1].join("-").replace("_", "/");
+        let derivation_path = parts[1..parts.len() - 1].join("-");
+
+        println!("[extract_address_and_path_from_filename] derivation_path: {derivation_path}");
         Some((address, derivation_path))
     } else {
         None

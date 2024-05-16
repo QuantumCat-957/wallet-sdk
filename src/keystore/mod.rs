@@ -205,18 +205,17 @@ impl Keystore {
 
     pub(crate) fn from_address_and_derivation_path_to_name(
         address: Address,
-        derivation_path: &str,
+        raw_derivation_path: &str,
         suffix: &str,
     ) -> String {
         println!("from_signingkey_to_name: {:#?}", address);
         // let hash_name = Self::generate_hashed_filename(address, derivation_path);
         // let name = format!("{}-{}", address.to_string(), suffix);
-        let name = format!(
-            "{}-{}-{}",
-            address,
-            derivation_path.replace("/", "_"),
-            suffix
+        let derivation_path = percent_encoding::percent_encode(
+            raw_derivation_path.as_bytes(),
+            percent_encoding::NON_ALPHANUMERIC,
         );
+        let name = format!("{}-{}-{}", address, derivation_path, suffix);
         name
     }
 
@@ -234,10 +233,11 @@ impl Keystore {
             .ok_or(anyhow::anyhow!("No wallet"))?;
 
         match wallet_type {
-            crate::WalletType::Root(_) => {
+            crate::WalletType::Root(address) => {
                 let root_dir = wallet_tree.get_root_dir(wallet_name);
-                let pk = Keystore::get_pk_with_password(old_password, &root_dir)?;
-                let seed = Keystore::get_seed_with_password(old_password, &root_dir)?;
+
+                let pk = Keystore::get_pk_with_password(address, old_password, &root_dir)?;
+                let seed = Keystore::get_seed_with_password(address, old_password, &root_dir)?;
 
                 let pk_filename = wallet.get_root_pk_filename();
                 let seed_filename = wallet.get_root_seed_filename();
@@ -259,9 +259,9 @@ impl Keystore {
                     Some(&seed_filename),
                 )?;
             }
-            crate::WalletType::Subs(_) => {
+            crate::WalletType::Subs(address) => {
                 let subs_dir = wallet_tree.get_subs_dir(wallet_name);
-                let pk = Keystore::get_pk_with_password(old_password, &subs_dir)?;
+                let pk = Keystore::get_pk_with_password(address, old_password, &subs_dir)?;
 
                 let pk_filename = wallet.get_root_pk_filename();
 
@@ -388,20 +388,28 @@ impl Keystore {
     }
 
     pub(crate) fn get_seed_with_password<P: AsRef<Path>>(
+        address: Address,
         password: &str,
         path: P,
     ) -> Result<Vec<u8>, anyhow::Error> {
+        let filename = Keystore::from_address_to_name(address, "seed");
+        let path = path.as_ref().join(filename);
         let recovered_wallet = SeedWallet::decrypt_keystore(path, password)?;
         Ok(recovered_wallet.into_seed())
     }
 
     // 输入密码打开钱包
     pub(crate) fn get_pk_with_password<P: AsRef<Path>>(
+        address: Address,
         password: &str,
         path: P,
     ) -> Result<Vec<u8>, anyhow::Error> {
         // let secret = eth_keystore::decrypt_key(path, password)?;
-        let recovered_wallet = Wallet::decrypt_keystore(path.as_ref(), password)?;
+        let filename = Keystore::from_address_to_name(address, "pk");
+        let path = path.as_ref().join(filename);
+
+        println!("[get_pk_with_password] path: {path:?}");
+        let recovered_wallet = Wallet::decrypt_keystore(path, password)?;
 
         let key = recovered_wallet.signer().to_bytes();
         let private_key = key.to_vec();
@@ -660,13 +668,7 @@ mod test {
     }
 
     #[test]
-    fn test_decode() {
-        let path = "7dcc4fe1-ea67-48d5-b086-b37cc93e4f32";
-        let path = Path::new(path);
-        let _res = Keystore::get_pk_with_password("test", path);
-    }
-
-    #[test]
+    // TODO: 使其通过测试
     fn test_set_password() -> Result<(), anyhow::Error> {
         let (env, keystore, path) = setup_test_environment_and_create_keystore()?;
 
@@ -680,11 +682,11 @@ mod test {
             password,
         } = env;
 
-        let wallet_tree = WalletTreeManager::get_wallet_tree()?;
-
+        let wallet_tree = WalletTreeManager::get_wallet_tree().unwrap();
+        WalletTreeManager::fresh()?;
         println!("[test_set_password] wallet_tree: {wallet_tree:#?}");
-        let wallet = wallet_tree.get_wallet_branch(&wallet_name)?;
-        let root_address = keystore.get_address()?;
+        let wallet = wallet_tree.get_wallet_branch(&wallet_name).unwrap();
+        let root_address = keystore.get_address().unwrap();
 
         let sub_address = wallet
             .accounts
@@ -692,11 +694,21 @@ mod test {
             .pop_first()
             .map(|(_, address)| address)
             .unwrap();
+        let root_pk_file = wallet.get_root_pk_filename();
+        let sub_pk_file = wallet.get_sub_pk_filename(sub_address).unwrap();
+        println!("[test_set_password] root_pk_file: {root_pk_file}");
+        println!("[test_set_password] sub_pk_file: {sub_pk_file}");
         let root_dir = wallet_tree.get_root_dir(&wallet_name);
         let subs_dir = wallet_tree.get_subs_dir(&wallet_name);
 
-        let old_root_pk = Keystore::get_pk_with_password(&password, &root_dir).unwrap();
-        let old_sub_pk = Keystore::get_pk_with_password(&password, &subs_dir).unwrap();
+        println!("[test_set_password] root_dir: {root_dir:#?}");
+        println!("[test_set_password] subs_dir: {subs_dir:#?}");
+
+        //0xA933b676bE829a8203d8AA7501BD2A3671C77587-m%2F44%27%2F60%27%2F0%27%2F0%2F1-pk
+        //0xA933b676bE829a8203d8AA7501BD2A3671C77587-m%252F44%2527%252F60%2527%252F0%2527%252F0%252F1-pk
+        let old_root_pk =
+            Keystore::get_pk_with_password(root_address, &password, &root_dir).unwrap();
+        let old_sub_pk = Keystore::get_pk_with_password(sub_address, &password, &subs_dir).unwrap();
 
         let old_root_pk_str = alloy::hex::encode(old_root_pk);
         let old_sub_pk_str = alloy::hex::encode(old_sub_pk);
@@ -706,16 +718,18 @@ mod test {
         // let old_password = "example_password";
         let new_password = "new_password";
 
+        println!("[test_set_password] root_address: {root_address:#?}");
+        println!("[test_set_password] sub_address: {sub_address:#?}");
         // 设置根密码
-        Keystore::set_password(&wallet_name, root_address, &password, new_password)?;
+        Keystore::set_password(&wallet_name, root_address, &password, new_password).unwrap();
 
         // 设置子密码
-        Keystore::set_password(&wallet_name, sub_address, &password, new_password)?;
+        Keystore::set_password(&wallet_name, sub_address, &password, new_password).unwrap();
 
         // let path = "new_keystore";
 
-        let root_pk = Keystore::get_pk_with_password(new_password, root_dir).unwrap();
-        let sub_pk = Keystore::get_pk_with_password(new_password, subs_dir).unwrap();
+        let root_pk = Keystore::get_pk_with_password(root_address, new_password, root_dir).unwrap();
+        let sub_pk = Keystore::get_pk_with_password(sub_address, new_password, subs_dir).unwrap();
         let root_pk_str = alloy::hex::encode(root_pk);
         let sub_pk_str = alloy::hex::encode(sub_pk);
         println!("设置根成功，取出密钥： {root_pk_str}");
