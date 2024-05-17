@@ -586,13 +586,13 @@ mod test {
         let keystore = Keystore::new(&lang)?
             .create_root_keystore_with_path_phrase(&phrase, &salt, &path, &password)?;
 
-        crate::api::derive_subkey(wallet_name, password, password)?;
+        crate::handler::derive_subkey(wallet_name, password, password)?;
         Ok((test, keystore, path))
     }
 
     #[test]
     fn test_gen_phrase() {
-        let phrase = crate::api::gen_phrase("english").unwrap();
+        let phrase = crate::handler::gen_phrase("english").unwrap();
         tracing::info!("phrase: {}", phrase);
     }
 

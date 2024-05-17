@@ -1,8 +1,4 @@
-use std::{fs, path::Path};
-
-use alloy::primitives::Address;
-
-use crate::keystore::Keystore;
+use crate::response::Response;
 
 /// Initializes the global wallet tree resource.
 ///
@@ -36,14 +32,8 @@ use crate::keystore::Keystore;
 ///     Ok(())
 /// }
 /// ```
-pub fn init_resource(root: &str) -> Result<(), anyhow::Error> {
-    let root = Path::new(root);
-    crate::wallet_tree::manager::WALLET_TREE_MANAGER.get_or_try_init(|| {
-        // let wallet_tree = crate::traverse_directory_structure(root)?;
-        let manager = crate::wallet_tree::manager::WalletTreeManager::new();
-        manager.init_resource(root)
-    })?;
-    Ok(())
+pub fn init_resource(root: &str) -> Response<()> {
+    crate::handler::init_resource(root)?.into()
 }
 
 /// Generates a mnemonic phrase in the specified language.
@@ -83,9 +73,8 @@ pub fn init_resource(root: &str) -> Result<(), anyhow::Error> {
 ///
 /// This function does not explicitly panic. However, if the underlying implementation of
 /// `Language::from_str` or `Language::gen_phrase` panics, those panics will propagate.
-pub fn gen_phrase(lang: &str) -> Result<String, anyhow::Error> {
-    let lang = crate::utils::language::Language::from_str(lang)?;
-    Ok(lang.gen_phrase())
+pub fn gen_phrase(lang: &str) -> Response<String> {
+    crate::handler::gen_phrase(lang)?.into()
 }
 
 /// Generates a root keystore based on the provided mnemonic phrase, salt, and password.
@@ -140,29 +129,8 @@ pub fn generate_root(
     salt: &str,
     wallet_name: &str,
     password: &str,
-) -> Result<String, anyhow::Error> {
-    let derivation_path = "m/44'/60'/0'";
-
-    // Construct the storage path based on the wallet name and derivation path
-    let storage_path = Keystore::build_storage_path(wallet_name, derivation_path)?;
-
-    tracing::info!("storage_path: {storage_path:?}");
-
-    // Clear any existing keystore at the storage path
-    if storage_path.exists() {
-        fs::remove_dir_all(&storage_path)?; // Remove the directory and its contents
-    }
-    fs::create_dir_all(&storage_path)?; // Recreate the directory
-
-    // Create a new root keystore
-    let keystore = Keystore::new(lang)?.create_root_keystore_with_path_phrase(
-        phrase,
-        salt,
-        &storage_path,
-        password,
-    )?;
-
-    Ok(keystore.get_name()?)
+) -> Response<String> {
+    crate::handler::generate_root(lang, phrase, salt, wallet_name, password)?.into()
 }
 
 /// Resets the root keystore using the provided mnemonic phrase, salt, and new password.
@@ -220,35 +188,8 @@ pub fn reset_root(
     address: &str,
     wallet_name: &str,
     new_password: &str,
-) -> Result<Address, anyhow::Error> {
-    // Parse the provided address
-    let address: Address = address.parse()?;
-
-    // Verify that the provided mnemonic phrase and salt generate the expected address
-    Keystore::new(lang)?.check_address(phrase, salt, address)?;
-
-    let derivation_path = "m/44'/60'/0'";
-    // Construct the storage path based on the wallet name and derivation path
-    let storage_path = Keystore::build_storage_path(wallet_name, derivation_path)?;
-
-    tracing::info!("storage_path: {storage_path:?}");
-
-    // Clear any existing keystore at the storage path
-    if storage_path.exists() {
-        fs::remove_dir_all(&storage_path)?; // Remove the directory and its contents
-    }
-    fs::create_dir_all(&storage_path)?; // Recreate the directory
-
-    // Create a new root keystore with the new password
-    let wallet = Keystore::new(lang)?.create_root_keystore_with_path_phrase(
-        phrase,
-        salt,
-        &storage_path,
-        new_password,
-    )?;
-
-    // Return the address of the newly created keystore
-    Ok(wallet.get_address()?)
+) -> Response<alloy::primitives::Address> {
+    crate::handler::reset_root(lang, phrase, salt, address, wallet_name, new_password)?.into()
 }
 
 /// Changes the password of the keystore associated with a specific address in a wallet.
@@ -296,14 +237,11 @@ pub fn reset_root(
 /// `Keystore::set_password` panic, those panics will propagate.
 pub fn set_password(
     wallet_name: &str,
-    address: Address,
+    address: alloy::primitives::Address,
     old_password: &str,
     new_password: &str,
-) -> Result<(), anyhow::Error> {
-    // Set the password for the keystore associated with the specified address
-    Keystore::set_password(wallet_name, address, old_password, new_password)?;
-
-    Ok(())
+) -> Response<()> {
+    crate::handler::set_password(wallet_name, address, old_password, new_password)?.into()
 }
 
 /// Derives a subkey from the root key of the specified wallet, saves it with a new password, and returns its address.
@@ -352,50 +290,14 @@ pub fn derive_subkey(
     wallet_name: &str,
     root_password: &str,
     derive_password: &str,
-) -> Result<Address, anyhow::Error> {
-    // Retrieve the directory where the wallet data is stored
-    let wallet_dir = crate::wallet_tree::manager::WalletTreeManager::get_wallet_dir()?;
-
-    // Initialize an empty WalletTree structure
-    let mut wallet_tree = crate::wallet_tree::WalletTree::default();
-
-    // Traverse the directory structure to populate the wallet tree
-    crate::wallet_tree::manager::WalletTreeManager::traverse_directory_structure(
-        &mut wallet_tree,
-        &wallet_dir,
-    )?;
-
-    // Get the root and subs directory paths for the specified wallet
-    let root_dir = wallet_tree.get_root_dir(wallet_name);
-    let subs_dir = wallet_tree.get_subs_dir(wallet_name);
-
-    // Retrieve the wallet branch for the specified wallet
-    let wallet = wallet_tree.get_wallet_branch(wallet_name)?;
-
-    // Get the root keystore using the root password
-    let seed_wallet = Keystore::get_seed_keystore(wallet.root_address, &root_dir, root_password)?;
-    tracing::info!("seed_wallet: {seed_wallet:#?}");
-
-    // Generate the next derivation path
-    let chain_code = wallet.get_next_derivation_path();
-
-    // Derive a new subkey using the seed and chain code, and save it with the derive password
-    let seed_wallet = Keystore::derive_child_with_seed_and_chain_code_save(
-        seed_wallet.seed,
-        &chain_code,
-        subs_dir.to_string_lossy().to_string().as_str(),
-        derive_password,
-    )?;
-
-    // Return the address of the newly created subkey
-    let address = seed_wallet.address();
-
-    Ok(address)
+) -> Response<alloy::primitives::Address> {
+    crate::handler::derive_subkey(wallet_name, root_password, derive_password)?.into()
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::init_log;
+    use crate::keystore::Keystore;
 
     use super::*;
     use anyhow::Result;
@@ -473,7 +375,7 @@ pub(crate) mod tests {
         let coin_type = 60; // 60 是以太坊的 coin_type
         let password = "example_password".to_string();
         tracing::info!("[setup_test_environment] storage_dir: {storage_dir:?}");
-        init_resource(&storage_dir.to_string_lossy().to_string())?;
+        init_resource(&storage_dir.to_string_lossy().to_string());
         Ok(TestEnv {
             // storage_dir,
             lang,
@@ -501,7 +403,7 @@ pub(crate) mod tests {
             } = env;
 
             // 调用 generate_root 函数
-            generate_root(
+            crate::handler::generate_root(
                 &lang,
                 &phrase,
                 &salt,
@@ -528,7 +430,7 @@ pub(crate) mod tests {
         } = setup_test_environment(None, 0, false)?;
 
         // 调用 generate_root 函数
-        let address = generate_root(
+        let address = crate::handler::generate_root(
             &lang,
             &phrase,
             &salt,
@@ -581,7 +483,7 @@ pub(crate) mod tests {
 
         let derivation_path = "m/44'/60'/0'";
         // 先生成一个根密钥库
-        let keystore_name = generate_root(
+        let keystore_name = crate::handler::generate_root(
             &lang,
             &phrase,
             &salt,
@@ -603,7 +505,7 @@ pub(crate) mod tests {
 
         // 重新设置新的密码并重置根密钥库
         let new_password = "new_example_password";
-        let new_address = reset_root(
+        let new_address = crate::handler::reset_root(
             &lang,
             &phrase,
             &salt,
@@ -663,7 +565,7 @@ pub(crate) mod tests {
 
         tracing::info!("storage_dir: {storage_dir:#?}");
 
-        let keystore_name = generate_root(
+        let keystore_name = crate::handler::generate_root(
             &lang,
             &phrase,
             &salt,
@@ -678,7 +580,7 @@ pub(crate) mod tests {
         print_dir_structure(&wallet_dir, 0);
 
         // 测试派生子密钥
-        let address = derive_subkey(&wallet_name, &password, "password123")?;
+        let address = crate::handler::derive_subkey(&wallet_name, &password, "password123")?;
 
         // 验证派生的地址是否符合预期
         assert_eq!(

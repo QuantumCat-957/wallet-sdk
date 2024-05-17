@@ -144,10 +144,12 @@ impl WalletTreeManager {
                 let root_dir = path.join("root");
                 let subs_dir = path.join("subs");
                 if !root_dir.exists() {
-                    std::fs::create_dir_all(&root_dir)?;
+                    std::fs::create_dir_all(&root_dir)
+                        .map_err(|e| crate::Error::System(e.into()))?;
                 }
                 if !subs_dir.exists() {
-                    std::fs::create_dir_all(&subs_dir)?;
+                    std::fs::create_dir_all(&subs_dir)
+                        .map_err(|e| crate::Error::System(e.into()))?;
                 }
 
                 tracing::info!("root_dir: {root_dir:?}");
@@ -241,7 +243,7 @@ mod tests {
         } = crate::api::tests::setup_test_environment(None, 0, false)?;
 
         crate::wallet_tree::manager::WalletTreeManager::fresh()?;
-        let _address = crate::api::generate_root(
+        let _address = crate::handler::generate_root(
             &lang,
             &phrase,
             &salt,
@@ -272,7 +274,7 @@ mod tests {
             0,
             false,
         )?;
-        let _address = crate::api::generate_root(
+        let _address = crate::handler::generate_root(
             &lang,
             &phrase,
             &salt,
