@@ -237,7 +237,7 @@ pub fn reset_root(
 /// `Keystore::set_password` panic, those panics will propagate.
 pub fn set_password(
     wallet_name: &str,
-    address: alloy::primitives::Address,
+    address: &str,
     old_password: &str,
     new_password: &str,
 ) -> Response<()> {

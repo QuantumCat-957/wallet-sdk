@@ -99,10 +99,14 @@ pub fn reset_root(
 
 pub fn set_password(
     wallet_name: &str,
-    address: alloy::primitives::Address,
+    address: &str,
     old_password: &str,
     new_password: &str,
 ) -> Result<(), crate::Error> {
+    // Parse the provided address
+    let address = address
+        .parse::<alloy::primitives::Address>()
+        .map_err(|e| crate::SystemError::Service(e.to_string()))?;
     // Set the password for the keystore associated with the specified address
     Ok(
         crate::keystore::Keystore::set_password(wallet_name, address, old_password, new_password)
