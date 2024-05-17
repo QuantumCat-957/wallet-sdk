@@ -1,13 +1,17 @@
-pub mod api;
-pub mod error;
-pub mod eth_keystore;
-pub mod keystore;
-pub mod signer;
-pub mod utils;
-pub mod wallet;
-pub mod wallet_tree;
+mod api;
+mod error;
+mod eth_keystore;
+mod keystore;
+mod signer;
+mod utils;
+mod wallet;
+mod wallet_tree;
 
 use error::Error;
+
+pub use api::*;
+
+
 
 pub(crate) fn init_log() {
     tracing_subscriber::fmt()
