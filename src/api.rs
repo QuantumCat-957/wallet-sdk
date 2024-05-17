@@ -4,27 +4,37 @@ use alloy::primitives::Address;
 
 use crate::keystore::Keystore;
 
-/// 初始化资源并生成 `WalletTree`
+/// Initializes the global wallet tree resource.
 ///
-/// 该函数会遍历指定目录结构，生成 `WalletTree` 并将其存储在全局静态变量 `WALLET_TREE` 中。
-/// 如果 `WALLET_TREE` 已经初始化，则直接返回现有的 `WalletTree`。
+/// This function sets up the global wallet tree by traversing the directory structure
+/// specified by the given root path. It ensures that the wallet tree is initialized
+/// only once. If the wallet tree has already been initialized, subsequent calls to this
+/// function will have no effect.
 ///
-/// # 参数
+/// # Arguments
 ///
-/// * `root` - 包含钱包数据的根目录路径。
+/// * `root` - A string slice that holds the path to the root directory containing the wallet structure.
 ///
-/// # 返回
+/// # Returns
 ///
-/// 如果成功，返回对 `WalletTree` 的不可变引用。
+/// * `Ok(())` if the wallet tree was successfully initialized.
+/// * `Err` if there was an error during initialization.
 ///
-/// # 错误
+/// # Errors
 ///
-/// 如果遍历目录结构时出错，或者 `WalletTree` 初始化失败，会返回一个 `anyhow::Error`。
+/// This function will return an error if there is a problem reading the directory structure,
+/// or if any of the required files are missing or cannot be processed.
 ///
-/// # 示例
+/// # Examples
 ///
 /// ```rust
-/// let wallet_tree = init_resource("/path/to/wallets")?;
+/// use anyhow::Error;
+///
+/// fn main() -> Result<(), Error> {
+///     init_resource("/path/to/wallet/root")?;
+///     // Now the wallet tree is initialized and ready to use.
+///     Ok(())
+/// }
 /// ```
 pub fn init_resource(root: &str) -> Result<(), anyhow::Error> {
     let root = Path::new(root);
@@ -36,64 +46,94 @@ pub fn init_resource(root: &str) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-/// 生成助记词。
+/// Generates a mnemonic phrase in the specified language.
 ///
-/// 该函数根据指定的语言生成一个助记词字符串。
+/// This function generates a mnemonic phrase for a specified language. The language
+/// is provided as a string, and the function converts it to the appropriate `Language`
+/// enum variant before generating the phrase.
 ///
-/// # 参数
+/// # Arguments
 ///
-/// - `lang`: 指定生成助记词的语言，如 "english"。
+/// * `lang` - A string slice that specifies the language for the mnemonic phrase.
+///            The string should be a valid language code that the `Language` enum recognizes.
 ///
-/// # 返回
+/// # Returns
 ///
-/// 如果成功生成助记词，则返回包含助记词的 `Ok(String)`。
-/// 如果出现错误，则返回 `Err(anyhow::Error)`。
+/// * `Ok(String)` containing the generated mnemonic phrase if the language conversion and phrase generation succeed.
+/// * `Err(anyhow::Error)` if an error occurs during the language conversion or phrase generation.
 ///
-/// # 示例
+/// # Errors
 ///
-/// ```rust
-/// # use your_crate_name::gen_phrase;
-/// # fn main() -> Result<(), anyhow::Error> {
-/// let phrase = gen_phrase("english")?;
-/// println!("Generated phrase: {}", phrase);
-/// # Ok(())
-/// # }
+/// This function will return an error if the provided language string is invalid or
+/// if there is an issue generating the mnemonic phrase.
+///
+/// # Examples
+///
 /// ```
+/// use anyhow::Error;
+///
+/// fn main() -> Result<(), Error> {
+///     let phrase = gen_phrase("en")?;
+///     tracing::info!("Generated mnemonic phrase: {}", phrase);
+///     Ok(())
+/// }
+/// ```
+///
+/// # Panics
+///
+/// This function does not explicitly panic. However, if the underlying implementation of
+/// `Language::from_str` or `Language::gen_phrase` panics, those panics will propagate.
 pub fn gen_phrase(lang: &str) -> Result<String, anyhow::Error> {
     let lang = crate::utils::language::Language::from_str(lang)?;
     Ok(lang.gen_phrase())
 }
 
-/// 生成根密钥库
+/// Generates a root keystore based on the provided mnemonic phrase, salt, and password.
 ///
-/// 这个函数根据提供的语言、助记词、盐、存储目录、钱包名称、账户索引和密码生成一个新的根密钥库。
+/// This function creates a new root keystore using the specified mnemonic phrase, salt,
+/// and password. It constructs a storage path based on the wallet name and derivation path,
+/// removes any existing keystore at that path, and creates a new keystore.
 ///
-/// # 参数
-/// - `lang`: 语言，用于生成助记词的语言，如 "english"。
-/// - `phrase`: 助记词，用于生成根密钥的助记词字符串。
-/// - `salt`: 盐，用于生成根密钥的盐值。
-/// - `storage_dir`: 存储目录，根密钥库的存储路径。
-/// - `wallet_name`: 钱包名称，用于标识不同的钱包。
-/// - `password`: 密码，用于加密根密钥库。
+/// # Arguments
 ///
-/// # 返回
-/// 返回一个 `Result<String, anyhow::Error>`，表示生成的根密钥库的名称或生成过程中发生的错误。
+/// * `lang` - A string slice that specifies the language for the mnemonic phrase.
+/// * `phrase` - A string slice representing the mnemonic phrase.
+/// * `salt` - A string slice used as a salt in the key derivation process.
+/// * `wallet_name` - A string slice representing the name of the wallet.
+/// * `password` - A string slice used to encrypt the keystore.
 ///
-/// # 示例
+/// # Returns
+///
+/// * `Ok(String)` containing the name of the created keystore if the process is successful.
+/// * `Err(anyhow::Error)` if an error occurs during the keystore creation process.
+///
+/// # Errors
+///
+/// This function will return an error if there are issues with the provided arguments,
+/// the storage path, or the keystore creation process.
+///
+/// # Examples
+///
 /// ```
-/// let keystore_name = generate_root(
-///     "english",
-///     "shaft love depth mercy defy cargo strong control eye machine night test",
-///     "salt",
-///     "/path/to/storage",
-///     "example_wallet",
-///     "example_password"
-/// )?;
-/// println!("Generated keystore name: {}", keystore_name);
+/// use anyhow::Error;
+///
+/// fn main() -> Result<(), Error> {
+///     let lang = "en";
+///     let phrase = "example mnemonic phrase";
+///     let salt = "random_salt";
+///     let wallet_name = "my_wallet";
+///     let password = "secure_password";
+///     
+///     let keystore_name = generate_root(lang, phrase, salt, wallet_name, password)?;
+///     tracing::info!("Generated keystore: {}", keystore_name);
+///     Ok(())
+/// }
 /// ```
 ///
-/// # 错误
-/// 如果在生成过程中发生任何错误，将返回相应的 `anyhow::Error`。
+/// # Panics
+///
+/// This function does not explicitly panic. However, if the underlying implementations of
+/// `Keystore::build_storage_path`, `fs::remove_dir_all`, or `Keystore::create_root_keystore_with_path_phrase` panic, those panics will propagate.
 pub fn generate_root(
     lang: &str,
     phrase: &str,
@@ -102,54 +142,77 @@ pub fn generate_root(
     password: &str,
 ) -> Result<String, anyhow::Error> {
     let derivation_path = "m/44'/60'/0'";
-    // 构建存储路径
+
+    // Construct the storage path based on the wallet name and derivation path
     let storage_path = Keystore::build_storage_path(wallet_name, derivation_path)?;
 
-    println!("storage_path: {storage_path:?}");
-    // 清空该存储路径下的keystore
-    if storage_path.exists() {
-        fs::remove_dir_all(&storage_path)?; // 删除目录及其内容
-    }
-    fs::create_dir_all(&storage_path)?; // 重新创建目录
+    tracing::info!("storage_path: {storage_path:?}");
 
-    // 重新创建root
-    // let bip44_path = format!("m/44'/{}'/{}'/0/0", coin_type, account_index);
+    // Clear any existing keystore at the storage path
+    if storage_path.exists() {
+        fs::remove_dir_all(&storage_path)?; // Remove the directory and its contents
+    }
+    fs::create_dir_all(&storage_path)?; // Recreate the directory
+
+    // Create a new root keystore
     let keystore = Keystore::new(lang)?.create_root_keystore_with_path_phrase(
         phrase,
         salt,
         &storage_path,
-        // derivation_path,
         password,
     )?;
 
     Ok(keystore.get_name()?)
 }
 
-/// 通过验证提供的助记词和盐来重置根密钥库，并在指定的存储路径上用新密码重新创建密钥库。
+/// Resets the root keystore using the provided mnemonic phrase, salt, and new password.
 ///
-/// # 参数
+/// This function verifies the provided address against the mnemonic phrase and salt,
+/// clears any existing keystore at the derived storage path, and creates a new root keystore
+/// with the new password.
 ///
-/// * `lang` - 助记词的语言。
-/// * `phrase` - 助记词。
-/// * `salt` - 用于密钥派生的盐值。
-/// * `address` - 从助记词和盐派生的预期地址。
-/// * `storage_dir` - 存储密钥库的基础目录。
-/// * `wallet_name` - 钱包名称。
-/// * `coin_type` - 币种类型（例如，以太坊的 coin_type 是 60）。
-/// * `account_index` - 账户索引。
-/// * `new_password` - 用于加密密钥库的新密码。
+/// # Arguments
 ///
-/// # 返回值
+/// * `lang` - A string slice that specifies the language for the mnemonic phrase.
+/// * `phrase` - A string slice representing the mnemonic phrase.
+/// * `salt` - A string slice used as a salt in the key derivation process.
+/// * `address` - A string slice representing the expected address derived from the mnemonic phrase and salt.
+/// * `wallet_name` - A string slice representing the name of the wallet.
+/// * `new_password` - A string slice used to encrypt the new keystore.
 ///
-/// * `Result<Address, anyhow::Error>` - 成功时返回新创建的密钥库的地址，失败时返回错误。
+/// # Returns
 ///
-/// # 错误
+/// * `Ok(Address)` containing the address of the created keystore if the process is successful.
+/// * `Err(anyhow::Error)` if an error occurs during the keystore creation process or if the address verification fails.
 ///
-/// 如果出现以下情况，该函数将返回错误：
-/// * 提供的助记词和盐不能生成预期的地址。
-/// * 解析提供的地址时出错。
-/// * 清空或创建存储目录时出错。
-/// * 创建新密钥库时出错。
+/// # Errors
+///
+/// This function will return an error if there are issues with the provided arguments,
+/// the storage path, or the keystore creation process.
+///
+/// # Examples
+///
+/// ```
+/// use anyhow::Error;
+///
+/// fn main() -> Result<(), Error> {
+///     let lang = "en";
+///     let phrase = "example mnemonic phrase";
+///     let salt = "random_salt";
+///     let address = "expected_address";
+///     let wallet_name = "my_wallet";
+///     let new_password = "new_secure_password";
+///
+///     let new_address = reset_root(lang, phrase, salt, address, wallet_name, new_password)?;
+///     tracing::info!("New keystore address: {}", new_address);
+///     Ok(())
+/// }
+/// ```
+///
+/// # Panics
+///
+/// This function does not explicitly panic. However, if the underlying implementations of
+/// `Keystore::build_storage_path`, `fs::remove_dir_all`, or `Keystore::create_root_keystore_with_path_phrase` panic, those panics will propagate.
 pub fn reset_root(
     lang: &str,
     phrase: &str,
@@ -158,92 +221,165 @@ pub fn reset_root(
     wallet_name: &str,
     new_password: &str,
 ) -> Result<Address, anyhow::Error> {
-    // 解析提供的地址
+    // Parse the provided address
     let address: Address = address.parse()?;
 
-    // 验证提供的助记词和盐生成预期的地址
+    // Verify that the provided mnemonic phrase and salt generate the expected address
     Keystore::new(lang)?.check_address(phrase, salt, address)?;
 
     let derivation_path = "m/44'/60'/0'";
-    // 构建存储路径
+    // Construct the storage path based on the wallet name and derivation path
     let storage_path = Keystore::build_storage_path(wallet_name, derivation_path)?;
 
-    println!("storage_path: {storage_path:?}");
+    tracing::info!("storage_path: {storage_path:?}");
 
-    // 如果存储路径存在，清空该路径下的密钥库
+    // Clear any existing keystore at the storage path
     if storage_path.exists() {
-        fs::remove_dir_all(&storage_path)?; // 删除目录及其内容
+        fs::remove_dir_all(&storage_path)?; // Remove the directory and its contents
     }
-    fs::create_dir_all(&storage_path)?; // 重新创建目录
+    fs::create_dir_all(&storage_path)?; // Recreate the directory
 
-    // 用新密码重新创建根密钥库
+    // Create a new root keystore with the new password
     let wallet = Keystore::new(lang)?.create_root_keystore_with_path_phrase(
         phrase,
         salt,
         &storage_path,
-        // derivation_path,
         new_password,
     )?;
 
-    // 返回新创建的密钥库的地址
+    // Return the address of the newly created keystore
     Ok(wallet.get_address()?)
 }
 
-/// 修改根密码
-pub fn set_root_password(
-    lang: &str,
-    path: &str,
-    old_password: &str,
-    password: &str,
-) -> Result<(), anyhow::Error> {
-    Ok(())
-}
-
-/// 修改密码
+/// Changes the password of the keystore associated with a specific address in a wallet.
+///
+/// This function locates the keystore file associated with the given address within the specified wallet,
+/// verifies the old password, and updates it to the new password.
+///
+/// # Arguments
+///
+/// * `wallet_name` - A string slice representing the name of the wallet.
+/// * `address` - The `Address` associated with the keystore that needs a password change.
+/// * `old_password` - A string slice containing the current password of the keystore.
+/// * `new_password` - A string slice containing the new password to set for the keystore.
+///
+/// # Returns
+///
+/// * `Ok(())` if the password change is successful.
+/// * `Err(anyhow::Error)` if an error occurs during the password change process.
+///
+/// # Errors
+///
+/// This function will return an error if there are issues with locating the keystore,
+/// verifying the old password, or updating it to the new password.
+///
+/// # Examples
+///
+/// ```
+/// use anyhow::Error;
+///
+/// fn main() -> Result<(), Error> {
+///     let wallet_name = "my_wallet";
+///     let address: Address = "0x1234...".parse()?;
+///     let old_password = "old_password";
+///     let new_password = "new_password";
+///
+///     set_password(wallet_name, address, old_password, new_password)?;
+///     tracing::info!("Password changed successfully");
+///     Ok(())
+/// }
+/// ```
+///
+/// # Panics
+///
+/// This function does not explicitly panic. However, if the underlying implementations of
+/// `Keystore::set_password` panic, those panics will propagate.
 pub fn set_password(
     wallet_name: &str,
     address: Address,
     old_password: &str,
     new_password: &str,
 ) -> Result<(), anyhow::Error> {
+    // Set the password for the keystore associated with the specified address
     Keystore::set_password(wallet_name, address, old_password, new_password)?;
-
-    // let file_path = address.to_string();
-    // let pk = Keystore::get_pk_with_password(old_password, &file_path)?;
-    // TODO: 删除旧keystore
-    // let secret = eth_keystore::decrypt_key(keypath, password)?;
-
-    // let pk_filename =
 
     Ok(())
 }
 
-/// 派生子密钥
+/// Derives a subkey from the root key of the specified wallet, saves it with a new password, and returns its address.
+///
+/// This function locates the specified wallet, retrieves the root keystore using the provided root password,
+/// derives a new subkey using a chain code, saves the derived subkey with the specified derive password,
+/// and returns the address of the newly created subkey.
+///
+/// # Arguments
+///
+/// * `wallet_name` - A string slice representing the name of the wallet.
+/// * `root_password` - A string slice used to decrypt the root keystore.
+/// * `derive_password` - A string slice used to encrypt the derived subkey keystore.
+///
+/// # Returns
+///
+/// * `Ok(Address)` containing the address of the derived subkey if the process is successful.
+/// * `Err(anyhow::Error)` if an error occurs during the keystore retrieval, derivation, or saving process.
+///
+/// # Errors
+///
+/// This function will return an error if there are issues with locating the wallet,
+/// decrypting the root keystore, deriving the subkey, or saving the derived keystore.
+///
+/// # Examples
+///
+/// ```
+/// use anyhow::Error;
+///
+/// fn main() -> Result<(), Error> {
+///     let wallet_name = "my_wallet";
+///     let root_password = "root_password";
+///     let derive_password = "derive_password";
+///
+///     let address = derive_subkey(wallet_name, root_password, derive_password)?;
+///     tracing::info!("Derived subkey address: {}", address);
+///     Ok(())
+/// }
+/// ```
+///
+/// # Panics
+///
+/// This function does not explicitly panic. However, if the underlying implementations of
+/// `Keystore::get_seed_keystore`, `Keystore::derive_child_with_seed_and_chain_code_save`, or file system operations panic, those panics will propagate.
 pub fn derive_subkey(
     wallet_name: &str,
     root_password: &str,
     derive_password: &str,
 ) -> Result<Address, anyhow::Error> {
-    // if let Some(wallet_brach) = wallet_tree.get(wallet_name){
-    //     let root_seed =
-    // }
+    // Retrieve the directory where the wallet data is stored
     let wallet_dir = crate::wallet_tree::manager::WalletTreeManager::get_wallet_dir()?;
+
+    // Initialize an empty WalletTree structure
     let mut wallet_tree = crate::wallet_tree::WalletTree::default();
+
+    // Traverse the directory structure to populate the wallet tree
     crate::wallet_tree::manager::WalletTreeManager::traverse_directory_structure(
         &mut wallet_tree,
         &wallet_dir,
     )?;
 
+    // Get the root and subs directory paths for the specified wallet
     let root_dir = wallet_tree.get_root_dir(wallet_name);
     let subs_dir = wallet_tree.get_subs_dir(wallet_name);
+
+    // Retrieve the wallet branch for the specified wallet
     let wallet = wallet_tree.get_wallet_branch(wallet_name)?;
 
-    // let pk_filename = wallet.get_root_pk_filename();
+    // Get the root keystore using the root password
     let seed_wallet = Keystore::get_seed_keystore(wallet.root_address, &root_dir, root_password)?;
-    println!("seed_wallet: {seed_wallet:#?}");
+    tracing::info!("seed_wallet: {seed_wallet:#?}");
 
+    // Generate the next derivation path
     let chain_code = wallet.get_next_derivation_path();
 
+    // Derive a new subkey using the seed and chain code, and save it with the derive password
     let seed_wallet = Keystore::derive_child_with_seed_and_chain_code_save(
         seed_wallet.seed,
         &chain_code,
@@ -251,6 +387,7 @@ pub fn derive_subkey(
         derive_password,
     )?;
 
+    // Return the address of the newly created subkey
     let address = seed_wallet.address();
 
     Ok(address)
@@ -258,6 +395,8 @@ pub fn derive_subkey(
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use crate::init_log;
+
     use super::*;
     use anyhow::Result;
     use std::env;
@@ -273,10 +412,10 @@ pub(crate) mod tests {
                         print!("  ");
                     }
                     if path.is_dir() {
-                        println!("{}/", path.file_name().unwrap().to_string_lossy());
+                        tracing::info!("{}/", path.file_name().unwrap().to_string_lossy());
                         print_dir_structure(&path, level + 1);
                     } else {
-                        println!("{}", path.file_name().unwrap().to_string_lossy());
+                        tracing::info!("{}", path.file_name().unwrap().to_string_lossy());
                     }
                 }
             }
@@ -322,7 +461,7 @@ pub(crate) mod tests {
             "shaft love depth mercy defy cargo strong control eye machine night test".to_string();
         let salt = "".to_string();
         if temp {
-            println!("storage_dir: {storage_dir:?}");
+            tracing::info!("storage_dir: {storage_dir:?}");
             // 创建临时目录结构
             let temm_dir = tempfile::tempdir_in(&storage_dir)?;
             wallet_name = temm_dir
@@ -333,7 +472,7 @@ pub(crate) mod tests {
         let wallet_name = wallet_name.unwrap_or("example_wallet".to_string());
         let coin_type = 60; // 60 是以太坊的 coin_type
         let password = "example_password".to_string();
-        println!("[setup_test_environment] storage_dir: {storage_dir:?}");
+        tracing::info!("[setup_test_environment] storage_dir: {storage_dir:?}");
         init_resource(&storage_dir.to_string_lossy().to_string())?;
         Ok(TestEnv {
             // storage_dir,
@@ -376,6 +515,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_generate_root() -> Result<()> {
+        init_log();
         let TestEnv {
             // storage_dir,
             lang,
@@ -396,7 +536,7 @@ pub(crate) mod tests {
             &wallet_name,
             &password,
         )?;
-        println!("Generated address: {}", address);
+        tracing::info!("Generated address: {}", address);
 
         // 构建预期路径
         let expected_path = Keystore::build_storage_path(
@@ -404,7 +544,7 @@ pub(crate) mod tests {
             &wallet_name,
             "m/44'/60'/0'",
         )?;
-        println!("expected_path: {:?}", expected_path);
+        tracing::info!("expected_path: {:?}", expected_path);
 
         // 确认目录存在
         assert!(expected_path.exists());
@@ -416,7 +556,7 @@ pub(crate) mod tests {
         assert!(keystore_file.is_file());
 
         // 打印目录结构
-        println!("Directory structure of '{}':", expected_path.display());
+        tracing::info!("Directory structure of '{}':", expected_path.display());
         print_dir_structure(&expected_path, 0);
 
         // 清理测试目录
@@ -427,6 +567,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_reset_root() -> Result<(), anyhow::Error> {
+        init_log();
         let TestEnv {
             // storage_dir,
             lang,
@@ -448,7 +589,7 @@ pub(crate) mod tests {
             &wallet_name,
             &password,
         )?;
-        println!("Generated keystore_name for reset: {}", keystore_name);
+        tracing::info!("Generated keystore_name for reset: {}", keystore_name);
         let storage_path = Keystore::build_storage_path(
             // &storage_dir.to_string_lossy().to_string(),
             &wallet_name,
@@ -471,7 +612,7 @@ pub(crate) mod tests {
             &wallet_name,
             new_password,
         )?;
-        println!("New generated address: {}", new_address);
+        tracing::info!("New generated address: {}", new_address);
         assert_eq!(address, new_address);
 
         // 构建预期路径
@@ -480,7 +621,7 @@ pub(crate) mod tests {
             &wallet_name,
             "m/44'/60'/0'",
         )?;
-        println!("expected_path: {:?}", expected_path);
+        tracing::info!("expected_path: {:?}", expected_path);
 
         // 确认目录存在
         assert!(expected_path.exists());
@@ -492,7 +633,7 @@ pub(crate) mod tests {
         assert!(keystore_file.is_file());
 
         // 打印目录结构
-        println!("Directory structure of '{}':", expected_path.display());
+        tracing::info!("Directory structure of '{}':", expected_path.display());
         print_dir_structure(&expected_path, 0);
 
         // 使用新密码打开keystore文件
@@ -520,7 +661,7 @@ pub(crate) mod tests {
         // let storage_dir = tempfile::tempdir_in(wallet_dir)?;
         // let storage_dir = storage_dir.path();
 
-        println!("storage_dir: {storage_dir:#?}");
+        tracing::info!("storage_dir: {storage_dir:#?}");
 
         let keystore_name = generate_root(
             &lang,
@@ -531,7 +672,7 @@ pub(crate) mod tests {
             &password,
         )?;
 
-        println!("keystore_name: {keystore_name}");
+        tracing::info!("keystore_name: {keystore_name}");
         // 执行目录结构遍历
         let wallet_dir = crate::wallet_tree::manager::WalletTreeManager::get_wallet_dir()?;
         print_dir_structure(&wallet_dir, 0);

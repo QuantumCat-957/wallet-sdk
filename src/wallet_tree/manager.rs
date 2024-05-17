@@ -1,5 +1,3 @@
-use std::borrow::BorrowMut;
-
 pub static WALLET_TREE_MANAGER: once_cell::sync::Lazy<
     once_cell::sync::OnceCell<WalletTreeManager>,
 > = once_cell::sync::Lazy::new(once_cell::sync::OnceCell::new);
@@ -11,6 +9,7 @@ pub(crate) struct WalletTreeManager {
 
 impl WalletTreeManager {
     pub fn new() -> Self {
+        // crossbeam::atomic::AtomicCell
         WalletTreeManager {
             wallet_tree: std::sync::atomic::AtomicPtr::new(std::ptr::null_mut()),
         }
@@ -37,11 +36,12 @@ impl WalletTreeManager {
             .load(std::sync::atomic::Ordering::SeqCst);
 
         let now = unsafe {
-            if current_ptr.is_null() {
-                return Err(anyhow::anyhow!("Must init first"));
-            } else {
-                current_ptr.as_mut().unwrap()
-            }
+            current_ptr.as_mut().unwrap()
+            // if current_ptr.is_null() {
+            //     return Err(anyhow::anyhow!("Must init first"));
+            // } else {
+            //     current_ptr.as_mut().unwrap()
+            // }
         };
         tracing::info!("[fresh] manager now: {:#?}", now);
         tracing::info!("[fresh] current_ptr before: {:#?}", current_ptr);
@@ -109,17 +109,6 @@ impl WalletTreeManager {
             }
         }
     }
-
-    // #[derive(Debug)]
-    // pub struct Root {
-    //     pub pk_filename: String,
-    //     pub seed_filename: String,
-    // }
-
-    // #[derive(Debug)]
-    // pub struct AccountBranch {
-    //     pub derived_keys: BTreeMap<String, String>,
-    // }
 
     /// 遍历指定目录结构，并将结果映射到数据结构中。
     ///
@@ -236,6 +225,80 @@ mod tests {
     use std::fs::{self, File};
     use std::io::Write;
     use tempfile::tempdir;
+
+    #[test]
+    fn test_double_free() -> Result<(), anyhow::Error> {
+        crate::init_log();
+        let crate::api::tests::TestEnv {
+            // storage_dir,
+            lang,
+            phrase,
+            salt,
+            wallet_name,
+            coin_type,
+            account_index,
+            password,
+        } = crate::api::tests::setup_test_environment(None, 0, false)?;
+
+        crate::wallet_tree::manager::WalletTreeManager::fresh()?;
+        let address = crate::api::generate_root(
+            &lang,
+            &phrase,
+            &salt,
+            // &storage_dir.to_string_lossy().to_string(),
+            &wallet_name,
+            &password,
+        )?;
+        crate::wallet_tree::manager::WalletTreeManager::fresh()?;
+        let manager = crate::wallet_tree::manager::WALLET_TREE_MANAGER
+            .get()
+            .ok_or(anyhow::anyhow!("Wallet tree not initialized"))?;
+        let ptr = manager
+            .wallet_tree
+            .load(std::sync::atomic::Ordering::SeqCst);
+
+        tracing::info!("[test_set_password] ptr before: {ptr:#?}");
+        let crate::api::tests::TestEnv {
+            // storage_dir,
+            lang,
+            phrase,
+            salt,
+            wallet_name,
+            coin_type,
+            account_index,
+            password,
+        } = crate::api::tests::setup_test_environment(
+            Some("test_double_free".to_string()),
+            0,
+            false,
+        )?;
+        let address = crate::api::generate_root(
+            &lang,
+            &phrase,
+            &salt,
+            // &storage_dir.to_string_lossy().to_string(),
+            &wallet_name,
+            &password,
+        )?;
+        crate::wallet_tree::manager::WalletTreeManager::fresh()?;
+        let manager = crate::wallet_tree::manager::WALLET_TREE_MANAGER
+            .get()
+            .ok_or(anyhow::anyhow!("Wallet tree not initialized"))?;
+        let ptr = manager
+            .wallet_tree
+            .load(std::sync::atomic::Ordering::SeqCst);
+
+        tracing::info!("[test_set_password] ptr before: {ptr:#?}");
+        let wallet_tree =
+            crate::wallet_tree::manager::WalletTreeManager::get_wallet_tree().unwrap();
+        let wallet_tree =
+            crate::wallet_tree::manager::WalletTreeManager::get_wallet_tree().unwrap();
+        let wallet_tree =
+            crate::wallet_tree::manager::WalletTreeManager::get_wallet_tree().unwrap();
+        tracing::info!("[test_set_password] wallet_tree before: {wallet_tree:#?}");
+
+        Ok(())
+    }
 
     #[test]
     fn test_traverse_directory_structure() -> Result<(), anyhow::Error> {

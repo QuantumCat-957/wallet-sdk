@@ -128,6 +128,7 @@ impl Keystore {
         tracing::info!("地址：{}", address);
 
         let seed_wallet = Keystore::save_seed_keystore(address, seed.as_slice(), path, password)?;
+        crate::wallet_tree::manager::WalletTreeManager::fresh()?;
 
         self.wallet_wrapper = Some(WalletWrapper::Root {
             pk_wallet,
@@ -274,10 +275,10 @@ impl Keystore {
                     pk.as_slice(),
                     new_password,
                     Some(&pk_filename),
-                )
-                .unwrap();
+                )?;
             }
         }
+        crate::wallet_tree::manager::WalletTreeManager::fresh()?;
 
         Ok(())
     }
@@ -688,8 +689,10 @@ mod test {
         tracing::info!("[test_set_password] ptr before: {ptr:#?}");
         let wallet_tree =
             crate::wallet_tree::manager::WalletTreeManager::get_wallet_tree().unwrap();
-        crate::wallet_tree::manager::WalletTreeManager::fresh()?;
         tracing::info!("[test_set_password] wallet_tree before: {wallet_tree:#?}");
+
+        crate::wallet_tree::manager::WalletTreeManager::fresh()?;
+
         let manager = crate::wallet_tree::manager::WALLET_TREE_MANAGER
             .get()
             .ok_or(anyhow::anyhow!("Wallet tree not initialized"))?;
