@@ -98,14 +98,14 @@ impl WalletTreeManager {
         Ok(wallet_tree.dir.clone())
     }
 
-    pub fn clear_wallet_tree(&self) {
+    pub fn _clear_wallet_tree(&self) {
         let ptr = self
             .wallet_tree
             .swap(std::ptr::null_mut(), std::sync::atomic::Ordering::SeqCst);
         if !ptr.is_null() {
             // 确保正确释放内存
             unsafe {
-                Box::from_raw(ptr);
+                let _ = Box::from_raw(ptr);
             }
         }
     }
@@ -235,13 +235,13 @@ mod tests {
             phrase,
             salt,
             wallet_name,
-            coin_type,
-            account_index,
+            coin_type: _,
+            account_index: _,
             password,
         } = crate::api::tests::setup_test_environment(None, 0, false)?;
 
         crate::wallet_tree::manager::WalletTreeManager::fresh()?;
-        let address = crate::api::generate_root(
+        let _address = crate::api::generate_root(
             &lang,
             &phrase,
             &salt,
@@ -264,15 +264,15 @@ mod tests {
             phrase,
             salt,
             wallet_name,
-            coin_type,
-            account_index,
+            coin_type: _,
+            account_index: _,
             password,
         } = crate::api::tests::setup_test_environment(
             Some("test_double_free".to_string()),
             0,
             false,
         )?;
-        let address = crate::api::generate_root(
+        let _address = crate::api::generate_root(
             &lang,
             &phrase,
             &salt,
@@ -289,9 +289,9 @@ mod tests {
             .load(std::sync::atomic::Ordering::SeqCst);
 
         tracing::info!("[test_set_password] ptr before: {ptr:#?}");
-        let wallet_tree =
+        let _wallet_tree =
             crate::wallet_tree::manager::WalletTreeManager::get_wallet_tree().unwrap();
-        let wallet_tree =
+        let _wallet_tree =
             crate::wallet_tree::manager::WalletTreeManager::get_wallet_tree().unwrap();
         let wallet_tree =
             crate::wallet_tree::manager::WalletTreeManager::get_wallet_tree().unwrap();

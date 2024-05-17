@@ -19,7 +19,7 @@ impl super::Keystore {
     //     let private_key = signingkey.to_bytes();
 
     //     let key = alloy::hex::encode(private_key);
-    //     println!("十六进制派生私钥: {:#?}", key);
+    //     tracing::info!("十六进制派生私钥: {:#?}", key);
 
     //     let (wallet, _) = alloy::signers::wallet::Wallet::encrypt_keystore(
     //         path,
@@ -52,7 +52,7 @@ impl super::Keystore {
     //     let private_key = signingkey.to_bytes();
 
     //     let key = alloy::hex::encode(private_key);
-    //     println!("十六进制派生私钥: {:#?}", key);
+    //     tracing::info!("十六进制派生私钥: {:#?}", key);
 
     //     let (wallet, _) = alloy::signers::wallet::Wallet::encrypt_keystore(
     //         path,
@@ -99,7 +99,7 @@ impl super::Keystore {
         let private_key = signingkey.to_bytes();
 
         let key = alloy::hex::encode(private_key);
-        println!("十六进制派生私钥: {:#?}", key);
+        tracing::info!("十六进制派生私钥: {:#?}", key);
 
         let (wallet, _) = alloy::signers::wallet::Wallet::encrypt_keystore(
             path,
@@ -114,13 +114,13 @@ impl super::Keystore {
     }
 
     // 传入助记词、盐、派生路径，由根私钥派生出子私钥，创建子Keystore，不生成keystore文件
-    pub(crate) fn derive_child_with_phrase_and_salt_no_save<W: coins_bip39::Wordlist>(
-        mut self,
+    pub(crate) fn _derive_child_with_phrase_and_salt_no_save<W: coins_bip39::Wordlist>(
+        self,
         phrase: &str,
         salt: &str,
         chain: &str,
     ) -> Result<Self, anyhow::Error> {
-        let pk_wallet = alloy::signers::wallet::MnemonicBuilder::<W>::default()
+        let _pk_wallet = alloy::signers::wallet::MnemonicBuilder::<W>::default()
             .phrase(phrase)
             .derivation_path(chain)?
             // Use this if your mnemonic is encrypted
@@ -128,7 +128,7 @@ impl super::Keystore {
             .build()?;
 
         let key = self.clone().get_private()?;
-        println!("key: {key}");
+        tracing::info!("key: {key}");
         // self.wallet_wrapper = Some(WalletWrapper::Root {
         //     pk_wallet,
         //     seed_wallet,

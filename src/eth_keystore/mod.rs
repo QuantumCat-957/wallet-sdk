@@ -150,10 +150,10 @@ where
 
     let mut data = keystore.crypto.ciphertext;
 
-    println!("[decrypt_data] data: {data:?}");
+    tracing::info!("[decrypt_data] data: {data:?}");
 
     decryptor.apply_keystream(&mut data);
-    println!("[decrypt_data] apply_keystream data: {data:?}");
+    tracing::info!("[decrypt_data] apply_keystream data: {data:?}");
 
     Ok(data)
 }
@@ -216,9 +216,9 @@ where
 
     let mut ciphertext = data.as_ref().to_vec();
 
-    println!("[encrypt_key] ciphertext: {ciphertext:?}");
+    tracing::info!("[encrypt_key] ciphertext: {ciphertext:?}");
     encryptor.apply_keystream(&mut ciphertext);
-    println!("[encrypt_key] apply_keystream ciphertext: {ciphertext:?}");
+    tracing::info!("[encrypt_key] apply_keystream ciphertext: {ciphertext:?}");
 
     // Calculate the MAC.
     let mac: digest::generic_array::GenericArray<
@@ -272,7 +272,7 @@ where
         },
     };
 
-    println!("[encrypt_data] keystore: {:?}", keystore);
+    tracing::info!("[encrypt_data] keystore: {:?}", keystore);
     let contents = serde_json::to_string(&keystore)?;
 
     // Create a file in write-only mode, to store the encrypted JSON keystore.
@@ -300,7 +300,6 @@ impl Aes128Ctr {
 
 #[cfg(test)]
 mod test {
-    use crate::wallet::SeedWallet;
 
     use super::*;
     #[test]
@@ -321,14 +320,14 @@ mod test {
         // // let data_to_encrypt = alloy::hex!("hellohellohellohellohello");
 
         let a = data_to_encrypt.as_ref().to_vec();
-        println!("[test_encrypt_key] a: {a:?}");
-        println!("[test_encrypt_key] data: {data_to_encrypt:?}");
+        tracing::info!("[test_encrypt_key] a: {a:?}");
+        tracing::info!("[test_encrypt_key] data: {data_to_encrypt:?}");
 
-        println!("");
+        tracing::info!("");
         let password = "password_to_keystore";
 
         // Since we specify a custom filename for the keystore, it will be stored in `$dir/my-key`
-        let name =
+        let _name =
             encrypt_data(&dir, &mut rng, &data_to_encrypt, password, Some("my-key")).unwrap();
 
         let path = "./my-key";
@@ -341,6 +340,6 @@ mod test {
         // let private_key = key.to_vec();
         // let private_key = alloy::hex::encode(private_key);
         // let data = alloy::hex::encode(&data);
-        println!("data: {data}");
+        tracing::info!("data: {data}");
     }
 }

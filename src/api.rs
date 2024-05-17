@@ -495,8 +495,8 @@ pub(crate) mod tests {
                 phrase,
                 salt,
                 wallet_name,
-                coin_type,
-                account_index,
+                coin_type: _,
+                account_index: _,
                 password,
             } = env;
 
@@ -522,8 +522,8 @@ pub(crate) mod tests {
             phrase,
             salt,
             wallet_name,
-            coin_type,
-            account_index,
+            coin_type: _,
+            account_index: _,
             password,
         } = setup_test_environment(None, 0, false)?;
 
@@ -574,8 +574,8 @@ pub(crate) mod tests {
             phrase,
             salt,
             wallet_name,
-            coin_type,
-            account_index,
+            coin_type: _,
+            account_index: _,
             password,
         } = setup_test_environment(None, 0, false)?;
 
@@ -651,8 +651,8 @@ pub(crate) mod tests {
             phrase,
             salt,
             wallet_name,
-            coin_type,
-            account_index,
+            coin_type: _,
+            account_index: _,
             password,
         } = setup_test_environment(None, 0, true)?;
 

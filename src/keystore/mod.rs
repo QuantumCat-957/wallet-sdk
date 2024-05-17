@@ -71,7 +71,7 @@ impl Keystore {
 
     // 创建根Keystore，密钥随机生成，并且保存到文件
     pub(crate) fn create_root_keystore_with_path(
-        mut self,
+        self,
         path: &str,
         password: &str,
     ) -> Result<Self, anyhow::Error> {
@@ -285,7 +285,7 @@ impl Keystore {
 
     // 传入助记词、盐，生成密钥，创建根Keystore，但不生成keystore文件
     pub(crate) fn create_root_keystore_with_phrase_no_path<W: coins_bip39::Wordlist>(
-        mut self,
+        self,
         phrase: &str,
         salt: &str,
     ) -> Result<Self, anyhow::Error> {
@@ -566,8 +566,8 @@ mod test {
             phrase,
             salt,
             wallet_name,
-            coin_type,
-            account_index,
+            coin_type: _,
+            account_index: _,
             password,
         } = &test;
 
@@ -655,7 +655,7 @@ mod test {
     fn test_get_seed_keystore() {
         let address = "0x2A47C7a76Ea6994B16eEEDBfD75845B2bC591fDF";
         let address = address.parse::<Address>().unwrap();
-        let derivation_path = "m/44'/60'/0'/0/1";
+        let _derivation_path = "m/44'/60'/0'/0/1";
         let password = "test";
         let dir = PathBuf::new().join("");
         let seed = Keystore::get_seed_keystore(address, &dir, password).unwrap();
@@ -667,15 +667,15 @@ mod test {
     // TODO: 使其通过测试
     fn test_set_password() -> Result<(), anyhow::Error> {
         init_log();
-        let (env, keystore, path) = setup_test_environment_and_create_keystore()?;
+        let (env, keystore, _path) = setup_test_environment_and_create_keystore()?;
 
         let TestEnv {
-            lang,
-            phrase,
-            salt,
+            lang: _,
+            phrase: _,
+            salt: _,
             wallet_name,
-            coin_type,
-            account_index,
+            coin_type: _,
+            account_index: _,
             password,
         } = env;
 
@@ -781,7 +781,7 @@ mod test {
         let lang = "english";
         let _res = Keystore::new(lang)
             .unwrap()
-            .derive_child_with_phrase_and_salt_no_save::<English>(phrase, "", chain)
+            ._derive_child_with_phrase_and_salt_no_save::<English>(phrase, "", chain)
             .unwrap();
     }
 

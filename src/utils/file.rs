@@ -3,13 +3,13 @@ pub(crate) fn extract_address_from_filename(filename: &str) -> Option<String> {
 }
 
 pub(crate) fn extract_address_and_path_from_filename(filename: &str) -> Option<(String, String)> {
-    println!("filename: {filename}");
+    tracing::info!("filename: {filename}");
     let parts: Vec<&str> = filename.split('-').collect();
     if parts.len() >= 3 {
         let address = parts[0].to_string();
         let derivation_path = parts[1..parts.len() - 1].join("-");
 
-        println!("[extract_address_and_path_from_filename] derivation_path: {derivation_path}");
+        tracing::info!("[extract_address_and_path_from_filename] derivation_path: {derivation_path}");
         Some((address, derivation_path))
     } else {
         None

@@ -19,12 +19,12 @@ impl super::Keystore {
         };
         let signature = pk_wallet.sign_message(message.as_bytes()).await?;
 
-        println!(
+        tracing::info!(
             "Signature produced by {:?}: {:?}",
             pk_wallet.address(),
             signature
         );
-        println!(
+        tracing::info!(
             "Signature recovered address: {:?}",
             signature.recover_address_from_msg(message)?
         );

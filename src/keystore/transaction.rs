@@ -28,7 +28,7 @@ impl super::Keystore {
         // Send the transaction and wait for the receipt.
         let receipt = provider.send_transaction(tx).await?.get_receipt().await?;
 
-        println!("Send transaction: {:?}", receipt.transaction_hash);
+        tracing::info!("Send transaction: {:?}", receipt.transaction_hash);
 
         Ok(())
     }
