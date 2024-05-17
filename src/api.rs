@@ -28,9 +28,9 @@ use crate::keystore::Keystore;
 /// ```
 pub fn init_resource(root: &str) -> Result<(), anyhow::Error> {
     let root = Path::new(root);
-    crate::WALLET_TREE_MANAGER.get_or_try_init(|| {
+    crate::wallet_tree::manager::WALLET_TREE_MANAGER.get_or_try_init(|| {
         // let wallet_tree = crate::traverse_directory_structure(root)?;
-        let manager = crate::WalletTreeManager::new();
+        let manager = crate::wallet_tree::manager::WalletTreeManager::new();
         manager.init_resource(root)
     })?;
     Ok(())
@@ -60,7 +60,7 @@ pub fn init_resource(root: &str) -> Result<(), anyhow::Error> {
 /// # }
 /// ```
 pub fn gen_phrase(lang: &str) -> Result<String, anyhow::Error> {
-    let lang = crate::language::Language::from_str(lang)?;
+    let lang = crate::utils::language::Language::from_str(lang)?;
     Ok(lang.gen_phrase())
 }
 
@@ -227,8 +227,9 @@ pub fn derive_subkey(
     // if let Some(wallet_brach) = wallet_tree.get(wallet_name){
     //     let root_seed =
     // }
-    let wallet_dir = crate::WalletTreeManager::get_wallet_dir()?;
-    let wallet_tree = crate::traverse_directory_structure(&wallet_dir)?;
+    let wallet_dir = crate::wallet_tree::manager::WalletTreeManager::get_wallet_dir()?;
+    let wallet_tree =
+        crate::wallet_tree::manager::WalletTreeManager::traverse_directory_structure(&wallet_dir)?;
 
     let root_dir = wallet_tree.get_root_dir(wallet_name);
     let subs_dir = wallet_tree.get_subs_dir(wallet_name);
@@ -258,10 +259,7 @@ pub(crate) mod tests {
     use anyhow::Result;
     use std::env;
     use std::fs;
-    use std::fs::File;
-    use std::io::Write as _;
     use std::path::{Path, PathBuf};
-    use tempfile::tempdir;
 
     pub(crate) fn print_dir_structure(dir: &Path, level: usize) {
         if let Ok(entries) = fs::read_dir(dir) {
@@ -514,7 +512,7 @@ pub(crate) mod tests {
             password,
         } = setup_test_environment(None, 0, true)?;
 
-        let storage_dir = crate::WalletTreeManager::get_wallet_dir()?;
+        let storage_dir = crate::wallet_tree::manager::WalletTreeManager::get_wallet_dir()?;
         // // 创建临时目录结构
         // let storage_dir = tempfile::tempdir_in(wallet_dir)?;
         // let storage_dir = storage_dir.path();
@@ -532,7 +530,7 @@ pub(crate) mod tests {
 
         println!("keystore_name: {keystore_name}");
         // 执行目录结构遍历
-        let wallet_dir = crate::WalletTreeManager::get_wallet_dir()?;
+        let wallet_dir = crate::wallet_tree::manager::WalletTreeManager::get_wallet_dir()?;
         print_dir_structure(&wallet_dir, 0);
 
         // 测试派生子密钥

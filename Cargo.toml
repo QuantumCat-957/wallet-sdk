@@ -50,3 +50,7 @@ once_cell = { version = "1", default-features = false }
 regex = "1.10.4"
 crossbeam = "0.8.4"
 percent-encoding = "2.3.1"
+
+# log
+tracing = "0.1.31"
+tracing-subscriber = { version = "0.3" }
