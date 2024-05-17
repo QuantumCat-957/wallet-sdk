@@ -7,7 +7,7 @@ impl super::Keystore {
         password: &str,
     ) -> Result<crate::wallet::SeedWallet, anyhow::Error> {
         let mut rng = rand::thread_rng();
-        let name = Self::from_address_to_name(address, "seed");
+        let name = Self::from_address_to_name(&address, "seed");
         // let path = dir.path().join(name);
         crate::eth_keystore::encrypt_data(dir, &mut rng, seed, password, Some(&name))?;
 
@@ -23,7 +23,7 @@ impl super::Keystore {
         dir: &std::path::PathBuf,
         password: &str,
     ) -> Result<crate::wallet::SeedWallet, anyhow::Error> {
-        let name = Self::from_address_to_name(address, "seed");
+        let name = Self::from_address_to_name(&address, "seed");
         let dir = std::path::Path::new(dir);
         let path = dir.join(name);
         println!("path: {path:?}, password: {password}");

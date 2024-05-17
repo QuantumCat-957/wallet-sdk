@@ -116,7 +116,7 @@ impl Keystore {
         // Ok(Wallet::<SigningKey> { signer, address, chain_id: None })
 
         let address = alloy::signers::utils::secret_key_to_address(signingkey);
-        let name = Self::from_address_to_name(address, "pk");
+        let name = Self::from_address_to_name(&address, "pk");
 
         let (pk_wallet, _) = alloy::signers::wallet::Wallet::encrypt_keystore(
             &path,
@@ -193,7 +193,7 @@ impl Keystore {
     }
 
     pub(crate) fn from_address_to_name(
-        address: Address,
+        address: &Address,
         // derivation_path: &str,
         suffix: &str,
     ) -> String {
@@ -228,15 +228,17 @@ impl Keystore {
     ) -> Result<(), anyhow::Error> {
         let wallet_tree = crate::wallet_tree::manager::WalletTreeManager::get_wallet_tree()?;
         let wallet = wallet_tree.get_wallet_branch(wallet_name)?;
-        let wallet_type = wallet
-            .find_with_address(address)
+        let account = wallet
+            .get_account_with_address(&address)
             .ok_or(anyhow::anyhow!("No wallet"))?;
 
-        match wallet_type {
-            crate::wallet_tree::WalletType::Root(address) => {
+        tracing::info!("[set_password] account: {:?}", account);
+
+        match &account {
+            crate::wallet_tree::Account::Root(address) => {
                 let root_dir = wallet_tree.get_root_dir(wallet_name);
 
-                let pk = Keystore::get_pk_with_password(address, old_password, &root_dir)?;
+                let pk = Keystore::get_pk(&account, old_password, &root_dir)?;
                 let seed = Keystore::get_seed_with_password(address, old_password, &root_dir)?;
 
                 let pk_filename = wallet.get_root_pk_filename();
@@ -259,11 +261,11 @@ impl Keystore {
                     Some(&seed_filename),
                 )?;
             }
-            crate::wallet_tree::WalletType::Subs(address) => {
+            crate::wallet_tree::Account::Sub(address, chain_code) => {
                 let subs_dir = wallet_tree.get_subs_dir(wallet_name);
-                let pk = Keystore::get_pk_with_password(address, old_password, &subs_dir)?;
+                let pk = Keystore::get_pk(&account, old_password, &subs_dir)?;
 
-                let pk_filename = wallet.get_root_pk_filename();
+                let pk_filename = wallet.get_sub_pk_filename(address, &chain_code)?;
 
                 let mut rng = rand::thread_rng();
                 let (_, _) = alloy::signers::wallet::Wallet::encrypt_keystore(
@@ -272,7 +274,8 @@ impl Keystore {
                     pk.as_slice(),
                     new_password,
                     Some(&pk_filename),
-                )?;
+                )
+                .unwrap();
             }
         }
 
@@ -388,7 +391,7 @@ impl Keystore {
     }
 
     pub(crate) fn get_seed_with_password<P: AsRef<Path>>(
-        address: Address,
+        address: &Address,
         password: &str,
         path: P,
     ) -> Result<Vec<u8>, anyhow::Error> {
@@ -399,14 +402,14 @@ impl Keystore {
     }
 
     // 输入密码打开钱包
-    pub(crate) fn get_pk_with_password<P: AsRef<Path>>(
-        address: Address,
+    pub(crate) fn get_pk<P: AsRef<Path>>(
+        account: &crate::wallet_tree::Account,
         password: &str,
         path: P,
     ) -> Result<Vec<u8>, anyhow::Error> {
         // let secret = eth_keystore::decrypt_key(path, password)?;
+        let filename = account.generate_pk_filename();
 
-        let filename = Keystore::from_address_to_name(address, "pk");
         let path = path.as_ref().join(filename);
 
         tracing::info!("[get_pk_with_password] path: {path:?}");
@@ -675,21 +678,42 @@ mod test {
             password,
         } = env;
 
+        let manager = crate::wallet_tree::manager::WALLET_TREE_MANAGER
+            .get()
+            .ok_or(anyhow::anyhow!("Wallet tree not initialized"))?;
+        let ptr = manager
+            .wallet_tree
+            .load(std::sync::atomic::Ordering::SeqCst);
+
+        tracing::info!("[test_set_password] ptr before: {ptr:#?}");
         let wallet_tree =
             crate::wallet_tree::manager::WalletTreeManager::get_wallet_tree().unwrap();
         crate::wallet_tree::manager::WalletTreeManager::fresh()?;
-        tracing::info!("[test_set_password] wallet_tree: {wallet_tree:#?}");
+        tracing::info!("[test_set_password] wallet_tree before: {wallet_tree:#?}");
+        let manager = crate::wallet_tree::manager::WALLET_TREE_MANAGER
+            .get()
+            .ok_or(anyhow::anyhow!("Wallet tree not initialized"))?;
+        let ptr = manager
+            .wallet_tree
+            .load(std::sync::atomic::Ordering::SeqCst);
+        tracing::info!("[test_set_password] ptr after: {ptr:#?}");
+
+        let wallet_tree =
+            crate::wallet_tree::manager::WalletTreeManager::get_wallet_tree().unwrap();
+        tracing::info!("[test_set_password] wallet_tree after: {wallet_tree:#?}");
+
         let wallet = wallet_tree.get_wallet_branch(&wallet_name).unwrap();
         let root_address = keystore.get_address().unwrap();
 
-        let sub_address = wallet
-            .accounts
-            .clone()
-            .pop_first()
-            .map(|(_, address)| address)
-            .unwrap();
+        let (chain_code, sub_address) = wallet.accounts.clone().pop_first().unwrap();
+
+        let root_account = wallet.get_account_with_address(&root_address).unwrap();
+        let sub_account = wallet.get_account_with_address(&sub_address).unwrap();
+
         let root_pk_file = wallet.get_root_pk_filename();
-        let sub_pk_file = wallet.get_sub_pk_filename(sub_address).unwrap();
+        let sub_pk_file = wallet
+            .get_sub_pk_filename(&sub_address, &chain_code)
+            .unwrap();
         tracing::info!("[test_set_password] root_pk_file: {root_pk_file}");
         tracing::info!("[test_set_password] sub_pk_file: {sub_pk_file}");
         let root_dir = wallet_tree.get_root_dir(&wallet_name);
@@ -700,9 +724,8 @@ mod test {
 
         //0xA933b676bE829a8203d8AA7501BD2A3671C77587-m%2F44%27%2F60%27%2F0%27%2F0%2F1-pk
         //0xA933b676bE829a8203d8AA7501BD2A3671C77587-m%252F44%2527%252F60%2527%252F0%2527%252F0%252F1-pk
-        let old_root_pk =
-            Keystore::get_pk_with_password(root_address, &password, &root_dir).unwrap();
-        let old_sub_pk = Keystore::get_pk_with_password(sub_address, &password, &subs_dir).unwrap();
+        let old_root_pk = Keystore::get_pk(&root_account, &password, &root_dir).unwrap();
+        let old_sub_pk = Keystore::get_pk(&sub_account, &password, &subs_dir).unwrap();
 
         let old_root_pk_str = alloy::hex::encode(old_root_pk);
         let old_sub_pk_str = alloy::hex::encode(old_sub_pk);
@@ -722,12 +745,14 @@ mod test {
 
         // let path = "new_keystore";
 
-        let root_pk = Keystore::get_pk_with_password(root_address, new_password, root_dir).unwrap();
-        let sub_pk = Keystore::get_pk_with_password(sub_address, new_password, subs_dir).unwrap();
+        let root_pk = Keystore::get_pk(&root_account, new_password, root_dir).unwrap();
+        tracing::info!("[test_set_password] sub_account: {sub_account:#?}, subs_dir: {subs_dir:?}");
+
+        let sub_pk = Keystore::get_pk(&sub_account, new_password, subs_dir).unwrap();
         let root_pk_str = alloy::hex::encode(root_pk);
         let sub_pk_str = alloy::hex::encode(sub_pk);
         tracing::info!("设置根成功，取出密钥： {root_pk_str}");
-        tracing::info!("设置根成功，取出密钥： {sub_pk_str}");
+        tracing::info!("设置子成功，取出密钥： {sub_pk_str}");
 
         Ok(())
     }

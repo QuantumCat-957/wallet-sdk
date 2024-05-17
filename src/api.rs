@@ -228,8 +228,11 @@ pub fn derive_subkey(
     //     let root_seed =
     // }
     let wallet_dir = crate::wallet_tree::manager::WalletTreeManager::get_wallet_dir()?;
-    let wallet_tree =
-        crate::wallet_tree::manager::WalletTreeManager::traverse_directory_structure(&wallet_dir)?;
+    let mut wallet_tree = crate::wallet_tree::WalletTree::default();
+    crate::wallet_tree::manager::WalletTreeManager::traverse_directory_structure(
+        &mut wallet_tree,
+        &wallet_dir,
+    )?;
 
     let root_dir = wallet_tree.get_root_dir(wallet_name);
     let subs_dir = wallet_tree.get_subs_dir(wallet_name);

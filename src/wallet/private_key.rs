@@ -1,19 +1,12 @@
 //! [`k256`] wallet implementation.
 
 use super::{SeedWallet, WalletError};
-use alloy::primitives::{hex, B256};
-use alloy::signers::k256::{
-    ecdsa::{self, SigningKey},
-    FieldBytes, NonZeroScalar, SecretKey as K256SecretKey,
-};
 use alloy::signers::utils::secret_key_to_address;
 use coins_bip32::xkeys::XPriv;
-use coins_bip39::{mnemonic, Mnemonic, Wordlist};
 use rand::{CryptoRng, Rng};
-use std::str::FromStr;
 
 // #[cfg(feature = "keystore")]
-use {elliptic_curve::rand_core, std::path::Path};
+use std::path::Path;
 
 impl SeedWallet {
     /// Creates a new Wallet instance from a [`SigningKey`].

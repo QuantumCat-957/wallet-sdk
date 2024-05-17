@@ -113,7 +113,7 @@ impl super::Keystore {
     }
 
     // 传入助记词、盐、派生路径，由根私钥派生出子私钥，创建子Keystore，不生成keystore文件
-    pub fn derive_child_with_phrase_and_salt_no_save<W: coins_bip39::Wordlist>(
+    pub(crate) fn derive_child_with_phrase_and_salt_no_save<W: coins_bip39::Wordlist>(
         mut self,
         phrase: &str,
         salt: &str,

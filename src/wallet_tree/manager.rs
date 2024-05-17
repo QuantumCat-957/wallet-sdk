@@ -1,10 +1,12 @@
+use std::borrow::BorrowMut;
+
 pub static WALLET_TREE_MANAGER: once_cell::sync::Lazy<
     once_cell::sync::OnceCell<WalletTreeManager>,
 > = once_cell::sync::Lazy::new(once_cell::sync::OnceCell::new);
 
 // 使用 AtomicCell 管理 WalletTree 的 Arc 引用
-pub struct WalletTreeManager {
-    wallet_tree: std::sync::atomic::AtomicPtr<super::WalletTree>,
+pub(crate) struct WalletTreeManager {
+    pub(crate) wallet_tree: std::sync::atomic::AtomicPtr<super::WalletTree>,
 }
 
 impl WalletTreeManager {
@@ -16,8 +18,9 @@ impl WalletTreeManager {
 
     pub fn init_resource(self, root: &std::path::Path) -> Result<Self, anyhow::Error> {
         let root_path = std::path::Path::new(root);
-        let wallet_tree = Box::new(Self::traverse_directory_structure(root_path)?);
-        let wallet_tree_ptr = Box::into_raw(wallet_tree);
+        let mut wallet_tree = super::WalletTree::default();
+        Self::traverse_directory_structure(&mut wallet_tree, root_path)?;
+        let wallet_tree_ptr = Box::into_raw(Box::new(wallet_tree));
         self.wallet_tree
             .store(wallet_tree_ptr, std::sync::atomic::Ordering::SeqCst);
         Ok(self)
@@ -27,14 +30,45 @@ impl WalletTreeManager {
         let manager = WALLET_TREE_MANAGER
             .get()
             .ok_or(anyhow::anyhow!("Wallet tree not initialized"))?;
-        let root = Self::get_wallet_dir()?;
-        println!("[fresh] root: {root:?}");
-        let root_path = std::path::Path::new(&root);
-        let wallet_tree = Box::new(Self::traverse_directory_structure(root_path)?);
-        let wallet_tree_ptr = Box::into_raw(wallet_tree);
-        manager
+
+        tracing::info!("[fresh] wallet_tree before: {:#?}", manager.wallet_tree); //0x00000001378040b0
+        let current_ptr = manager
             .wallet_tree
-            .store(wallet_tree_ptr, std::sync::atomic::Ordering::SeqCst);
+            .load(std::sync::atomic::Ordering::SeqCst);
+
+        let now = unsafe {
+            if current_ptr.is_null() {
+                return Err(anyhow::anyhow!("Must init first"));
+            } else {
+                current_ptr.as_mut().unwrap()
+            }
+        };
+        tracing::info!("[fresh] manager now: {:#?}", now);
+        tracing::info!("[fresh] current_ptr before: {:#?}", current_ptr);
+        let root = Self::get_wallet_dir()?;
+        tracing::info!("[fresh] root: {root:?}");
+        let root_path = std::path::Path::new(&root);
+        Self::traverse_directory_structure(now, root_path)?;
+        // let wallet_tree_ptr = Box::into_raw(wallet_tree);
+
+        // let _ = manager.wallet_tree.swap(
+        //     // current_ptr,
+        //     wallet_tree_ptr,
+        //     std::sync::atomic::Ordering::SeqCst,
+        //     // std::sync::atomic::Ordering::Relaxed,
+        // );
+        let current_ptr = manager
+            .wallet_tree
+            .load(std::sync::atomic::Ordering::SeqCst);
+        let after = unsafe { std::sync::Arc::from_raw(current_ptr) };
+        tracing::info!("[fresh] current_ptr after: {:#?}", current_ptr);
+        tracing::info!("[fresh] wallet_tree after: {:#?}", manager.wallet_tree);
+        tracing::info!("[fresh] manager after: {:#?}", after);
+
+        let manager = WALLET_TREE_MANAGER
+            .get()
+            .ok_or(anyhow::anyhow!("Wallet tree not initialized"))?;
+        tracing::info!("[fresh] final manager ptr: {:#?}", manager.wallet_tree);
         Ok(())
     }
 
@@ -102,14 +136,14 @@ impl WalletTreeManager {
     /// ```no_run
     /// let base_path = PathBuf::from("/path/to/wallets");
     /// let structure = traverse_directory_structure(base_path);
-    /// println!("{:#?}", structure);
+    /// tracing::info!("{:#?}", structure);
     /// ```
     pub fn traverse_directory_structure(
+        wallet_tree: &mut super::WalletTree,
         root: &std::path::Path,
-    ) -> Result<super::WalletTree, anyhow::Error> {
-        let mut wallet_tree = super::WalletTree::default();
-
-        wallet_tree.dir = root.to_path_buf();
+    ) -> Result<(), anyhow::Error> {
+        // let mut wallet_tree = super::WalletTree::default();
+        wallet_tree.dir = root.to_owned();
 
         for entry in std::fs::read_dir(root)? {
             let mut wallet_branch = super::WalletBranch::default();
@@ -127,7 +161,7 @@ impl WalletTreeManager {
                     std::fs::create_dir_all(&subs_dir)?;
                 }
 
-                println!("root_dir: {root_dir:?}");
+                tracing::info!("root_dir: {root_dir:?}");
 
                 let Some(root_dir) = std::fs::read_dir(&root_dir)?
                     .filter_map(Result::ok)
@@ -155,7 +189,7 @@ impl WalletTreeManager {
                 for subs_entry in std::fs::read_dir(subs_dir)? {
                     let subs_entry = subs_entry?;
                     let subs_path = subs_entry.path();
-                    println!("[traverse_directory_structure] subs_path: {subs_path:?}");
+                    tracing::info!("[traverse_directory_structure] subs_path: {subs_path:?}");
 
                     if subs_path.is_file()
                         && subs_path
@@ -167,7 +201,7 @@ impl WalletTreeManager {
                         if let Err(e) = wallet_branch.add_key_from_filename(
                             &subs_path.file_name().unwrap().to_string_lossy().to_string(),
                         ) {
-                            println!("[traverse_directory_structure] subs error: {e}");
+                            tracing::error!("[traverse_directory_structure] subs error: {e}");
                             continue;
                         };
                         // let derivation_path =
@@ -177,14 +211,22 @@ impl WalletTreeManager {
                 }
                 // wallet_branch.accounts = accounts;
 
+                tracing::info!(
+                    "[traverse_directory_structure] wallet_tree before: {:#?}",
+                    wallet_tree
+                );
                 // 将钱包分支添加到钱包树中
                 wallet_tree
                     .tree
                     .insert(wallet_name.to_string(), wallet_branch);
+                tracing::info!(
+                    "[traverse_directory_structure] wallet_tree after: {:#?}",
+                    wallet_tree
+                );
             }
         }
 
-        Ok(wallet_tree)
+        Ok(())
     }
 }
 
@@ -251,7 +293,8 @@ mod tests {
             WalletTreeManager::get_wallet_tree()?
         };
         // 执行目录结构遍历
-        let traverse_wallet_tree = WalletTreeManager::traverse_directory_structure(root_dir)?;
+        let mut traverse_wallet_tree = crate::wallet_tree::WalletTree::default();
+        WalletTreeManager::traverse_directory_structure(&mut traverse_wallet_tree, root_dir)?;
 
         // 验证钱包A
         // let wallet_a_branch = wallet_tree.get("钱包A").unwrap();
@@ -303,7 +346,7 @@ mod tests {
         // );
         // assert!(wallet_b_branch.accounts.is_empty());
         crate::api::tests::print_dir_structure(&root_dir, 0);
-        println!("钱包树: {:#?}", wallet_tree);
+        tracing::info!("钱包树: {:#?}", wallet_tree);
         assert_eq!(*wallet_tree, traverse_wallet_tree);
         Ok(())
     }

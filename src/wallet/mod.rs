@@ -1,15 +1,8 @@
 #![warn(unreachable_pub, clippy::missing_const_for_fn, rustdoc::all)]
-#![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![deny(unused_must_use)]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
-use alloy::consensus::SignableTransaction;
-use alloy::network::{TxSigner, TxSignerSync};
-use alloy::primitives::{Address, ChainId, Signature, B256};
-use alloy::signers::k256::ecdsa::{self, signature::hazmat::PrehashSigner, RecoveryId};
-use alloy::signers::{k256, Result, Signer, SignerSync};
-use async_trait::async_trait;
-use coins_bip39::{Mnemonic, Wordlist};
+use alloy::primitives::Address;
 use std::fmt;
 
 pub use alloy::signers::wallet::WalletError;
@@ -109,11 +102,4 @@ impl fmt::Debug for SeedWallet {
             .field("address", &self.address)
             .finish()
     }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use alloy::consensus::TxLegacy;
-    use alloy::primitives::{address, U256};
 }

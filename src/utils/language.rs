@@ -1,7 +1,3 @@
-use serde::{Deserialize, Serialize};
-
-use crate::keystore::Keystore;
-
 #[derive(Debug)]
 pub enum Language {
     English,
@@ -14,27 +10,6 @@ pub enum Language {
     Korean,
     Portuguese,
     Spanish,
-}
-
-#[derive(Debug, Clone)]
-pub struct Word<W> {
-    _wordlist: std::marker::PhantomData<W>,
-}
-
-impl<W: coins_bip39::Wordlist + Clone> Word<W> {
-    pub fn gen_phrase() -> String {
-        let mut rng = rand::thread_rng();
-        let mnemonic = coins_bip39::Mnemonic::<W>::new(&mut rng);
-        mnemonic.to_phrase()
-    }
-}
-
-impl<W: coins_bip39::Wordlist + Clone> Word<W> {
-    pub fn new() -> Self {
-        Self {
-            _wordlist: std::marker::PhantomData,
-        }
-    }
 }
 
 impl Language {
@@ -53,89 +28,7 @@ impl Language {
             _ => return Err(anyhow::anyhow!("Unknown lang")),
         })
     }
-    // pub fn to_word(self) -> std::ptr::NonNull<()> {
-    //     match self {
-    //         Language::English => unsafe {
-    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
-    //                 coins_bip39::English,
-    //             >::new())))
-    //             .cast()
-    //         },
-    //         Language::ChineseSimplified => unsafe {
-    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
-    //                 coins_bip39::ChineseSimplified,
-    //             >::new())))
-    //             .cast()
-    //         },
-    //         Language::ChineseTraditional => unsafe {
-    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
-    //                 coins_bip39::ChineseTraditional,
-    //             >::new())))
-    //             .cast()
-    //         },
-    //         Language::Czech => unsafe {
-    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(
-    //                 Word::<coins_bip39::Czech>::new(),
-    //             )))
-    //             .cast()
-    //         },
-    //         Language::French => unsafe {
-    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(
-    //                 Word::<coins_bip39::French>::new(),
-    //             )))
-    //             .cast()
-    //         },
-    //         Language::Italian => unsafe {
-    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
-    //                 coins_bip39::Italian,
-    //             >::new())))
-    //             .cast()
-    //         },
-    //         Language::Japanese => unsafe {
-    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
-    //                 coins_bip39::Japanese,
-    //             >::new())))
-    //             .cast()
-    //         },
-    //         Language::Korean => unsafe {
-    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(
-    //                 Word::<coins_bip39::Korean>::new(),
-    //             )))
-    //             .cast()
-    //         },
-    //         Language::Portuguese => unsafe {
-    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
-    //                 coins_bip39::Portuguese,
-    //             >::new())))
-    //             .cast()
-    //         },
-    //         Language::Spanish => unsafe {
-    //             std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(Word::<
-    //                 coins_bip39::Spanish,
-    //             >::new())))
-    //             .cast()
-    //         },
-    //     }
-    // }
 }
-
-// impl<W: coins_bip39::Wordlist + Clone> From<Language> for Word<W> {
-//     fn from(value: Language) -> Self {
-//         match value {
-//             Language::English => Word::<W>::new(),
-//             Language::ChineseSimplified => Word::<W>::new(),
-//             Language::ChineseTraditional => Word::<W>::new(),
-//             Language::Czech => Word::<W>::new(),
-//             Language::French => Word::<W>::new(),
-//             Language::Italian => Word::<W>::new(),
-//             Language::Japanese => Word::<W>::new(),
-//             Language::Korean => Word::<W>::new(),
-//             Language::Portuguese => Word::<W>::new(),
-//             Language::Spanish => Word::<W>::new(),
-//             Language::Unknown => Word::<W>::new(),
-//         }
-//     }
-// }
 
 #[derive(Debug, Clone)]
 pub enum WordlistWrapper {
@@ -214,20 +107,3 @@ impl Language {
         }
     }
 }
-
-// impl<W: coins_bip39::Wordlist + Clone> From<Language> for Keystore<W> {
-//     fn from(value: Language) -> Self {
-//         match value {
-//             Language::English => Keystore::<W>::new(),
-//             Language::ChineseSimplified => Keystore::<W>::new(),
-//             Language::ChineseTraditional => Keystore::<W>::new(),
-//             Language::Czech => Keystore::<W>::new(),
-//             Language::French => Keystore::<W>::new(),
-//             Language::Italian => Keystore::<W>::new(),
-//             Language::Japanese => Keystore::<W>::new(),
-//             Language::Korean => Keystore::<W>::new(),
-//             Language::Portuguese => Keystore::<W>::new(),
-//             Language::Spanish => Keystore::<W>::new(),
-//         }
-//     }
-// }
