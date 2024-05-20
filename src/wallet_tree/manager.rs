@@ -223,6 +223,8 @@ impl WalletTreeManager {
 
 #[cfg(test)]
 mod tests {
+    use crate::wallet_manager::api::tests::{print_dir_structure, setup_test_environment, TestEnv};
+
     use super::*;
     use std::fs::{self, File};
     use std::io::Write;
@@ -231,7 +233,7 @@ mod tests {
     #[test]
     fn test_double_free() -> Result<(), anyhow::Error> {
         crate::init_log();
-        let crate::api::tests::TestEnv {
+        let TestEnv {
             // storage_dir,
             lang,
             phrase,
@@ -240,7 +242,7 @@ mod tests {
             coin_type: _,
             account_index: _,
             password,
-        } = crate::api::tests::setup_test_environment(None, 0, false)?;
+        } = setup_test_environment(None, 0, false)?;
 
         crate::wallet_tree::manager::WalletTreeManager::fresh()?;
         let _address = crate::handler::generate_root(
@@ -260,7 +262,7 @@ mod tests {
             .load(std::sync::atomic::Ordering::SeqCst);
 
         tracing::info!("[test_set_password] ptr before: {ptr:#?}");
-        let crate::api::tests::TestEnv {
+        let TestEnv {
             // storage_dir,
             lang,
             phrase,
@@ -269,11 +271,7 @@ mod tests {
             coin_type: _,
             account_index: _,
             password,
-        } = crate::api::tests::setup_test_environment(
-            Some("test_double_free".to_string()),
-            0,
-            false,
-        )?;
+        } = setup_test_environment(Some("test_double_free".to_string()), 0, false)?;
         let _address = crate::handler::generate_root(
             &lang,
             &phrase,
@@ -410,7 +408,7 @@ mod tests {
         //         .to_string_lossy()
         // );
         // assert!(wallet_b_branch.accounts.is_empty());
-        crate::api::tests::print_dir_structure(&root_dir, 0);
+        print_dir_structure(&root_dir, 0);
         tracing::info!("钱包树: {:#?}", wallet_tree);
         assert_eq!(*wallet_tree, traverse_wallet_tree);
         Ok(())

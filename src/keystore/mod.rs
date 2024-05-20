@@ -551,15 +551,18 @@ mod test {
     use secp256k1::Secp256k1;
     use tempfile::tempdir;
 
-    use crate::{api::tests::TestEnv, init_log, keystore::WalletWrapper};
+    use crate::{
+        init_log,
+        keystore::WalletWrapper,
+        wallet_manager::api::tests::{print_dir_structure, setup_test_environment, TestEnv},
+    };
 
     use super::Keystore;
 
     /// 准备测试环境并生成根密钥库。
     fn setup_test_environment_and_create_keystore(
     ) -> Result<(TestEnv, Keystore, PathBuf), anyhow::Error> {
-        let test =
-            crate::api::tests::setup_test_environment(Some("测试钱包".to_string()), 0, false)?;
+        let test = setup_test_environment(Some("测试钱包".to_string()), 0, false)?;
         let TestEnv {
             // storage_dir,
             lang,
@@ -627,7 +630,7 @@ mod test {
 
         // 打印生成的目录结构
         tracing::info!("Directory structure of '{}':", path.display());
-        crate::api::tests::print_dir_structure(&path, 0);
+        print_dir_structure(&path, 0);
 
         Ok(())
     }
