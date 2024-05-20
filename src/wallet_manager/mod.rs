@@ -3,6 +3,7 @@ use std::path::PathBuf;
 pub mod api;
 pub mod handler;
 
+#[derive(Debug, Clone)]
 pub struct WalletManager {
     pub dir: String,
 }
