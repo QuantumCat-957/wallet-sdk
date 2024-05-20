@@ -1,15 +1,15 @@
-pub fn init_resource(root: &str) -> Result<(), crate::Error> {
-    let root = std::path::Path::new(root);
-    crate::wallet_tree::manager::WALLET_TREE_MANAGER
-        .get_or_try_init(|| {
-            // let wallet_tree = crate::traverse_directory_structure(root)?;
-            let manager = crate::wallet_tree::manager::WalletTreeManager::new();
-            manager.init_resource(root)
-        })
-        .map_err(|e| crate::SystemError::Service(e.to_string()))?;
+// pub fn init_resource(root: &str) -> Result<(), crate::Error> {
+//     let root = std::path::Path::new(root);
+//     crate::wallet_tree::manager::WALLET_TREE_MANAGER
+//         .get_or_try_init(|| {
+//             // let wallet_tree = crate::traverse_directory_structure(root)?;
+//             let manager = crate::wallet_tree::manager::WalletTreeManager::new();
+//             manager.init_resource(root)
+//         })
+//         .map_err(|e| crate::SystemError::Service(e.to_string()))?;
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 pub fn gen_phrase(lang: &str) -> Result<String, crate::Error> {
     let lang = crate::utils::language::Language::from_str(lang)
@@ -23,11 +23,9 @@ pub fn generate_root(
     salt: &str,
     wallet_name: &str,
     password: &str,
-) -> Result<String, crate::Error> {
-    let derivation_path = "m/44'/60'/0'";
-
+) -> Result<alloy::primitives::Address, crate::Error> {
     // Construct the storage path based on the wallet name and derivation path
-    let storage_path = crate::keystore::Keystore::build_storage_path(wallet_name, derivation_path)
+    let storage_path = crate::keystore::Keystore::build_storage_path(wallet_name, true)
         .map_err(|e| crate::SystemError::Service(e.to_string()))?;
 
     tracing::info!("storage_path: {storage_path:?}");
@@ -47,7 +45,7 @@ pub fn generate_root(
         .map_err(|e| crate::SystemError::Service(e.to_string()))?;
 
     Ok(keystore
-        .get_name()
+        .get_address()
         .map_err(|e| crate::SystemError::Service(e.to_string()))?)
 }
 
@@ -70,9 +68,8 @@ pub fn reset_root(
         .check_address(phrase, salt, address)
         .map_err(|e| crate::SystemError::Service(e.to_string()))?;
 
-    let derivation_path = "m/44'/60'/0'";
     // Construct the storage path based on the wallet name and derivation path
-    let storage_path = crate::keystore::Keystore::build_storage_path(wallet_name, derivation_path)
+    let storage_path = crate::keystore::Keystore::build_storage_path(wallet_name, true)
         .map_err(|e| crate::SystemError::Service(e.to_string()))?;
 
     tracing::info!("storage_path: {storage_path:?}");
@@ -115,6 +112,7 @@ pub fn set_password(
 }
 
 pub fn derive_subkey(
+    derivation_path: &str,
     wallet_name: &str,
     root_password: &str,
     derive_password: &str,
@@ -148,13 +146,10 @@ pub fn derive_subkey(
             .map_err(|e| crate::SystemError::Service(e.to_string()))?;
     tracing::info!("seed_wallet: {seed_wallet:#?}");
 
-    // Generate the next derivation path
-    let chain_code = wallet.get_next_derivation_path();
-
     // Derive a new subkey using the seed and chain code, and save it with the derive password
     let seed_wallet = crate::keystore::Keystore::derive_child_with_seed_and_chain_code_save(
         seed_wallet.seed,
-        &chain_code,
+        derivation_path,
         subs_dir.to_string_lossy().to_string().as_str(),
         derive_password,
     )

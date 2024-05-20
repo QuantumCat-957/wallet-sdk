@@ -139,28 +139,28 @@ impl WalletBranch {
         )
     }
 
-    pub(crate) fn get_next_derivation_path(&self) -> String {
-        // 找到所有现有的派生路径
-        let mut indices: Vec<u32> = self
-            .accounts
-            .values()
-            .map(|address| address.to_string())
-            .filter_map(|path| {
-                tracing::info!("[get_next_derivation_path] path: {path}");
-                if path.starts_with("m/44'/60'/0'/0/") {
-                    path.split('/').last()?.parse::<u32>().ok()
-                } else {
-                    None
-                }
-            })
-            .collect();
+    // pub(crate) fn get_next_derivation_path(&self) -> String {
+    //     // 找到所有现有的派生路径
+    //     let mut indices: Vec<u32> = self
+    //         .accounts
+    //         .values()
+    //         .map(|address| address.to_string())
+    //         .filter_map(|path| {
+    //             tracing::info!("[get_next_derivation_path] path: {path}");
+    //             if path.starts_with("m/44'/60'/0'/0/") {
+    //                 path.split('/').last()?.parse::<u32>().ok()
+    //             } else {
+    //                 None
+    //             }
+    //         })
+    //         .collect();
 
-        // 找到最大的索引
-        indices.sort();
-        tracing::info!("indices: {indices:?}");
-        let next_index = indices.last().cloned().unwrap_or(0) + 1;
-        tracing::info!("next_index: {next_index}");
+    //     // 找到最大的索引
+    //     indices.sort();
+    //     tracing::info!("indices: {indices:?}");
+    //     let next_index = indices.last().cloned().unwrap_or(0) + 1;
+    //     tracing::info!("next_index: {next_index}");
 
-        format!("m/44'/60'/0'/0/{}", next_index)
-    }
+    //     format!("m/44'/60'/0'/0/{}", next_index)
+    // }
 }

@@ -223,7 +223,9 @@ impl WalletTreeManager {
 
 #[cfg(test)]
 mod tests {
-    use crate::wallet_manager::api::tests::{print_dir_structure, setup_test_environment, TestEnv};
+    use crate::wallet_manager::api::tests::{
+        print_dir_structure, setup_test_environment, TestData, TestEnv,
+    };
 
     use super::*;
     use std::fs::{self, File};
@@ -233,6 +235,10 @@ mod tests {
     #[test]
     fn test_double_free() -> Result<(), anyhow::Error> {
         crate::init_log();
+        let TestData {
+            wallet_manager,
+            env,
+        } = setup_test_environment(None, 0, false)?;
         let TestEnv {
             // storage_dir,
             lang,
@@ -242,17 +248,19 @@ mod tests {
             coin_type: _,
             account_index: _,
             password,
-        } = setup_test_environment(None, 0, false)?;
-
+        } = env;
         crate::wallet_tree::manager::WalletTreeManager::fresh()?;
-        let _address = crate::handler::generate_root(
-            &lang,
-            &phrase,
-            &salt,
-            // &storage_dir.to_string_lossy().to_string(),
-            &wallet_name,
-            &password,
-        )?;
+        let _address = wallet_manager
+            .generate_root(
+                &lang,
+                &phrase,
+                &salt,
+                // &storage_dir.to_string_lossy().to_string(),
+                &wallet_name,
+                &password,
+            )
+            .result
+            .unwrap();
         crate::wallet_tree::manager::WalletTreeManager::fresh()?;
         let manager = crate::wallet_tree::manager::WALLET_TREE_MANAGER
             .get()
@@ -262,6 +270,11 @@ mod tests {
             .load(std::sync::atomic::Ordering::SeqCst);
 
         tracing::info!("[test_set_password] ptr before: {ptr:#?}");
+        let TestData {
+            wallet_manager,
+            env,
+        } = setup_test_environment(Some("test_double_free".to_string()), 0, false)?;
+
         let TestEnv {
             // storage_dir,
             lang,
@@ -271,15 +284,18 @@ mod tests {
             coin_type: _,
             account_index: _,
             password,
-        } = setup_test_environment(Some("test_double_free".to_string()), 0, false)?;
-        let _address = crate::handler::generate_root(
-            &lang,
-            &phrase,
-            &salt,
-            // &storage_dir.to_string_lossy().to_string(),
-            &wallet_name,
-            &password,
-        )?;
+        } = env;
+        let _address = wallet_manager
+            .generate_root(
+                &lang,
+                &phrase,
+                &salt,
+                // &storage_dir.to_string_lossy().to_string(),
+                &wallet_name,
+                &password,
+            )
+            .result
+            .unwrap();
         crate::wallet_tree::manager::WalletTreeManager::fresh()?;
         let manager = crate::wallet_tree::manager::WALLET_TREE_MANAGER
             .get()
@@ -411,35 +427,6 @@ mod tests {
         print_dir_structure(&root_dir, 0);
         tracing::info!("钱包树: {:#?}", wallet_tree);
         assert_eq!(*wallet_tree, traverse_wallet_tree);
-        Ok(())
-    }
-
-    #[test]
-    fn test_get_next_derivation_path() -> Result<(), anyhow::Error> {
-        // 创建钱包分支
-        let mut wallet_branch = crate::wallet_tree::WalletBranch {
-            root_address: "0x296a3c6b001e163409d7df318799bd52b5e3b67d"
-                .parse()
-                .unwrap(),
-            accounts: std::collections::BTreeMap::new(),
-        };
-
-        // 添加一些派生路径
-        wallet_branch.add_key_from_filename("address-m_44'_60'_0'_0_0-pk")?;
-        wallet_branch.add_key_from_filename("address-m_44'_60'_0'_0_1-pk")?;
-
-        // 检查生成的下一个派生路径
-        let next_derivation_path = wallet_branch.get_next_derivation_path();
-        assert_eq!(next_derivation_path, "m/44'/60'/0'/0/2");
-
-        // 添加更多派生路径
-        wallet_branch.add_key_from_filename("address-m_44'_60'_0'_0_2-pk")?;
-        wallet_branch.add_key_from_filename("address-m_44'_60'_0'_0_4-pk")?;
-
-        // 检查生成的下一个派生路径
-        let next_derivation_path = wallet_branch.get_next_derivation_path();
-        assert_eq!(next_derivation_path, "m/44'/60'/0'/0/5");
-
         Ok(())
     }
 }

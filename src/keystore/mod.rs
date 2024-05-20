@@ -18,7 +18,6 @@ use crate::wallet::SeedWallet;
 #[derive(Debug, Clone)]
 pub(crate) struct Keystore {
     wallet_wrapper: Option<WalletWrapper>,
-    name: Option<String>,
     _wordlist: crate::utils::language::WordlistWrapper,
 }
 
@@ -40,18 +39,17 @@ impl Keystore {
         // tracing::info!("wordlist_wrapper: {wordlist_wrapper:#?}");
         Ok(Self {
             wallet_wrapper: None,
-            name: None,
             _wordlist: wordlist_wrapper?,
         })
     }
 
-    pub(crate) fn get_name(&self) -> Result<String, anyhow::Error> {
-        let Some(name) = &self.name else {
-            return Err(anyhow!("No wallet"));
-        };
+    // pub(crate) fn get_name(&self) -> Result<String, anyhow::Error> {
+    //     let Some(name) = &self.name else {
+    //         return Err(anyhow!("No wallet"));
+    //     };
 
-        Ok(name.to_string())
-    }
+    //     Ok(name.to_string())
+    // }
 
     pub(crate) fn get_address(&self) -> Result<Address, anyhow::Error> {
         let Some(wallet) = &self.wallet_wrapper else {
@@ -134,7 +132,6 @@ impl Keystore {
             pk_wallet,
             seed_wallet,
         });
-        self.name = Some(name);
         Ok(self)
     }
 
@@ -452,14 +449,14 @@ impl Keystore {
         wallet_name: &str,
         // account_index: u32,
         // address: Address,
-        derivation_path: &str,
+        is_root: bool,
     ) -> Result<PathBuf, anyhow::Error> {
         let mut storage_path = crate::wallet_tree::manager::WalletTreeManager::get_wallet_dir()?;
 
         storage_path.push(wallet_name);
         // storage_path.push(format!("account_{}", account_index));
 
-        if Self::is_root_derivation_path(derivation_path) {
+        if is_root {
             storage_path.push("root");
         } else {
             storage_path.push("subs");
@@ -554,7 +551,9 @@ mod test {
     use crate::{
         init_log,
         keystore::WalletWrapper,
-        wallet_manager::api::tests::{print_dir_structure, setup_test_environment, TestEnv},
+        wallet_manager::api::tests::{
+            print_dir_structure, setup_test_environment, TestData, TestEnv,
+        },
     };
 
     use super::Keystore;
@@ -562,7 +561,10 @@ mod test {
     /// 准备测试环境并生成根密钥库。
     fn setup_test_environment_and_create_keystore(
     ) -> Result<(TestEnv, Keystore, PathBuf), anyhow::Error> {
-        let test = setup_test_environment(Some("测试钱包".to_string()), 0, false)?;
+        let TestData {
+            wallet_manager,
+            env,
+        } = setup_test_environment(Some("测试钱包".to_string()), 0, false)?;
         let TestEnv {
             // storage_dir,
             lang,
@@ -572,11 +574,10 @@ mod test {
             coin_type: _,
             account_index: _,
             password,
-        } = &test;
+        } = &env;
 
-        let derivation_path = "m/44'/60'/0'";
         // 构建存储路径
-        let path = Keystore::build_storage_path(wallet_name, derivation_path)?;
+        let path = Keystore::build_storage_path(wallet_name, true)?;
 
         // 如果路径存在，清空目录
         if path.exists() {
@@ -589,13 +590,19 @@ mod test {
         let keystore = Keystore::new(&lang)?
             .create_root_keystore_with_path_phrase(&phrase, &salt, &path, &password)?;
 
-        crate::handler::derive_subkey(wallet_name, password, password)?;
-        Ok((test, keystore, path))
+        let derivation_path = "m/44'/60'/0'/0/1";
+        crate::wallet_manager::handler::derive_subkey(
+            derivation_path,
+            wallet_name,
+            password,
+            password,
+        )?;
+        Ok((env, keystore, path))
     }
 
     #[test]
     fn test_gen_phrase() {
-        let phrase = crate::handler::gen_phrase("english").unwrap();
+        let phrase = crate::wallet_manager::handler::gen_phrase("english").unwrap();
         tracing::info!("phrase: {}", phrase);
     }
 
@@ -620,7 +627,6 @@ mod test {
         let (_, keystore, path) = setup_test_environment_and_create_keystore()?;
 
         // 检查返回值
-        assert!(keystore.name.is_some());
         assert!(keystore.wallet_wrapper.is_some());
 
         // 打印生成的地址
@@ -821,7 +827,6 @@ mod test {
         let signer = alloy::signers::wallet::LocalWallet::random();
         let wallet = Keystore {
             wallet_wrapper: Some(crate::keystore::WalletWrapper::Child { pk_wallet: signer }),
-            name: Some(String::from("value")),
             _wordlist: crate::utils::language::WordlistWrapper::English(English),
         };
 

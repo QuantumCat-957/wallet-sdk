@@ -1,7 +1,6 @@
 #![feature(try_trait_v2)]
 mod error;
 mod eth_keystore;
-mod handler;
 mod keystore;
 mod response;
 mod signer;
