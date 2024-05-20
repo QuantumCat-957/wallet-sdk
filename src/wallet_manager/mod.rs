@@ -4,29 +4,27 @@ pub mod api;
 pub mod handler;
 
 pub struct WalletManager {
-    pub dir: std::path::PathBuf,
+    pub dir: String,
 }
 
 impl WalletManager {
     pub fn new(dir: String) -> WalletManager {
-        let dir = PathBuf::from(&dir);
+        // let dir = PathBuf::from(&dir);
         WalletManager { dir }
     }
 
-    pub fn get_wallet_dir(&self) -> &std::path::PathBuf {
-        &self.dir
-    }
-
-    pub fn get_mut_wallet_dir(&mut self) -> &mut std::path::PathBuf {
-        &mut self.dir
+    pub fn get_wallet_dir(&self) -> std::path::PathBuf {
+        PathBuf::from(&self.dir)
     }
 
     pub(crate) fn get_root_dir(&self, wallet_name: &str) -> std::path::PathBuf {
-        self.dir.join(wallet_name).join("root")
+        let path = PathBuf::from(&self.dir);
+        path.join(wallet_name).join("root")
     }
 
     pub(crate) fn get_subs_dir(&self, wallet_name: &str) -> std::path::PathBuf {
-        self.dir.join(wallet_name).join("subs")
+        let path = PathBuf::from(&self.dir);
+        path.join(wallet_name).join("subs")
     }
 
     /// 遍历指定目录结构，并将结果映射到数据结构中。

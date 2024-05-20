@@ -13,7 +13,6 @@ pub struct WalletTree {
 
 impl WalletTree {
     pub fn fresh() -> Result<(), anyhow::Error> {
-        // let wallet_tree = crate::WALLET_TREE_MANAGER.get_mut();
         Ok(())
     }
 
