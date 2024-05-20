@@ -126,7 +126,7 @@ impl Keystore {
         tracing::info!("地址：{}", address);
 
         let seed_wallet = Keystore::save_seed_keystore(address, seed.as_slice(), path, password)?;
-        crate::wallet_tree::manager::WalletTreeManager::fresh()?;
+        // crate::wallet_tree::manager::WalletTreeManager::fresh()?;
 
         self.wallet_wrapper = Some(WalletWrapper::Root {
             pk_wallet,
@@ -219,12 +219,14 @@ impl Keystore {
 
     // 设置密码
     pub(crate) fn set_password(
+        root_dir: PathBuf,
+        subs_dir: PathBuf,
+        wallet_tree: crate::wallet_tree::WalletTree,
         wallet_name: &str,
         address: Address,
         old_password: &str,
         new_password: &str,
     ) -> Result<(), anyhow::Error> {
-        let wallet_tree = crate::wallet_tree::manager::WalletTreeManager::get_wallet_tree()?;
         let wallet = wallet_tree.get_wallet_branch(wallet_name)?;
         let account = wallet
             .get_account_with_address(&address)
@@ -234,8 +236,6 @@ impl Keystore {
 
         match &account {
             crate::wallet_tree::Account::Root(address) => {
-                let root_dir = wallet_tree.get_root_dir(wallet_name);
-
                 let pk = Keystore::get_pk(&account, old_password, &root_dir)?;
                 let seed = Keystore::get_seed_with_password(address, old_password, &root_dir)?;
 
@@ -260,7 +260,6 @@ impl Keystore {
                 )?;
             }
             crate::wallet_tree::Account::Sub(address, chain_code) => {
-                let subs_dir = wallet_tree.get_subs_dir(wallet_name);
                 let pk = Keystore::get_pk(&account, old_password, &subs_dir)?;
 
                 let pk_filename = wallet.get_sub_pk_filename(address, &chain_code)?;
@@ -275,7 +274,7 @@ impl Keystore {
                 )?;
             }
         }
-        crate::wallet_tree::manager::WalletTreeManager::fresh()?;
+        // crate::wallet_tree::manager::WalletTreeManager::fresh()?;
 
         Ok(())
     }
@@ -434,41 +433,6 @@ impl Keystore {
         root_pattern.is_match(derivation_path)
     }
 
-    /// 构建存储路径，根据派生路径判断是根路径还是子路径
-    ///
-    /// # 参数
-    /// - `storage_dir`: 基础目录
-    /// - `wallet_name`: 钱包名称
-    /// - `account_index`: 账户索引
-    /// - `address`: 以太坊地址
-    /// - `derivation_path`: 派生路径
-    ///
-    /// # 返回
-    /// 返回构建的路径
-    pub(crate) fn build_storage_path(
-        wallet_name: &str,
-        // account_index: u32,
-        // address: Address,
-        is_root: bool,
-    ) -> Result<PathBuf, anyhow::Error> {
-        let mut storage_path = crate::wallet_tree::manager::WalletTreeManager::get_wallet_dir()?;
-
-        storage_path.push(wallet_name);
-        // storage_path.push(format!("account_{}", account_index));
-
-        if is_root {
-            storage_path.push("root");
-        } else {
-            storage_path.push("subs");
-        }
-
-        // // 根据地址和派生路径生成文件名
-        // let filename = Self::generate_hashed_filename(address, derivation_path);
-        // storage_path.push(filename);
-
-        Ok(storage_path)
-    }
-
     /// 根据地址和派生路径生成文件名
     ///
     /// # 参数
@@ -560,7 +524,7 @@ mod test {
 
     /// 准备测试环境并生成根密钥库。
     fn setup_test_environment_and_create_keystore(
-    ) -> Result<(TestEnv, Keystore, PathBuf), anyhow::Error> {
+    ) -> Result<(TestData, Keystore, PathBuf), anyhow::Error> {
         let TestData {
             wallet_manager,
             env,
@@ -577,7 +541,8 @@ mod test {
         } = &env;
 
         // 构建存储路径
-        let path = Keystore::build_storage_path(wallet_name, true)?;
+        let path = wallet_manager.get_root_dir(wallet_name);
+        let wallet_tree = wallet_manager.traverse_directory_structure()?;
 
         // 如果路径存在，清空目录
         if path.exists() {
@@ -590,14 +555,22 @@ mod test {
         let keystore = Keystore::new(&lang)?
             .create_root_keystore_with_path_phrase(&phrase, &salt, &path, &password)?;
 
+        let subs_dir = wallet_manager.get_subs_dir(wallet_name);
         let derivation_path = "m/44'/60'/0'/0/1";
         crate::wallet_manager::handler::derive_subkey(
+            path.clone(),
+            subs_dir,
+            wallet_tree,
             derivation_path,
             wallet_name,
             password,
             password,
         )?;
-        Ok((env, keystore, path))
+        let test_data = TestData {
+            wallet_manager,
+            env,
+        };
+        Ok((test_data, keystore, path))
     }
 
     #[test]
@@ -676,7 +649,14 @@ mod test {
     // TODO: 使其通过测试
     fn test_set_password() -> Result<(), anyhow::Error> {
         init_log();
-        let (env, keystore, _path) = setup_test_environment_and_create_keystore()?;
+        let (
+            TestData {
+                wallet_manager,
+                env,
+            },
+            keystore,
+            _path,
+        ) = setup_test_environment_and_create_keystore()?;
 
         let TestEnv {
             lang: _,
@@ -688,30 +668,7 @@ mod test {
             password,
         } = env;
 
-        let manager = crate::wallet_tree::manager::WALLET_TREE_MANAGER
-            .get()
-            .ok_or(anyhow::anyhow!("Wallet tree not initialized"))?;
-        let ptr = manager
-            .wallet_tree
-            .load(std::sync::atomic::Ordering::SeqCst);
-
-        tracing::info!("[test_set_password] ptr before: {ptr:#?}");
-        let wallet_tree =
-            crate::wallet_tree::manager::WalletTreeManager::get_wallet_tree().unwrap();
-        tracing::info!("[test_set_password] wallet_tree before: {wallet_tree:#?}");
-
-        crate::wallet_tree::manager::WalletTreeManager::fresh()?;
-
-        let manager = crate::wallet_tree::manager::WALLET_TREE_MANAGER
-            .get()
-            .ok_or(anyhow::anyhow!("Wallet tree not initialized"))?;
-        let ptr = manager
-            .wallet_tree
-            .load(std::sync::atomic::Ordering::SeqCst);
-        tracing::info!("[test_set_password] ptr after: {ptr:#?}");
-
-        let wallet_tree =
-            crate::wallet_tree::manager::WalletTreeManager::get_wallet_tree().unwrap();
+        let wallet_tree = wallet_manager.traverse_directory_structure().unwrap();
         tracing::info!("[test_set_password] wallet_tree after: {wallet_tree:#?}");
 
         let wallet = wallet_tree.get_wallet_branch(&wallet_name).unwrap();
@@ -728,8 +685,8 @@ mod test {
             .unwrap();
         tracing::info!("[test_set_password] root_pk_file: {root_pk_file}");
         tracing::info!("[test_set_password] sub_pk_file: {sub_pk_file}");
-        let root_dir = wallet_tree.get_root_dir(&wallet_name);
-        let subs_dir = wallet_tree.get_subs_dir(&wallet_name);
+        let root_dir = wallet_manager.get_root_dir(&wallet_name);
+        let subs_dir = wallet_manager.get_subs_dir(&wallet_name);
 
         tracing::info!("[test_set_password] root_dir: {root_dir:#?}");
         tracing::info!("[test_set_password] subs_dir: {subs_dir:#?}");
@@ -750,10 +707,20 @@ mod test {
         tracing::info!("[test_set_password] root_address: {root_address:#?}");
         tracing::info!("[test_set_password] sub_address: {sub_address:#?}");
         // 设置根密码
-        Keystore::set_password(&wallet_name, root_address, &password, new_password).unwrap();
+        wallet_manager.set_password(
+            wallet_name.clone(),
+            root_address.to_string(),
+            password.clone(),
+            new_password.to_owned(),
+        );
 
         // 设置子密码
-        Keystore::set_password(&wallet_name, sub_address, &password, new_password).unwrap();
+        wallet_manager.set_password(
+            wallet_name,
+            sub_address.to_string(),
+            password,
+            new_password.to_owned(),
+        );
 
         // let path = "new_keystore";
 

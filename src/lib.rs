@@ -9,7 +9,7 @@ mod wallet;
 mod wallet_manager;
 mod wallet_tree;
 
-use error::{system::SystemError, Error};
+use error::{common::parse::ParseError, system::SystemError, Error};
 
 pub use wallet_manager::WalletManager;
 

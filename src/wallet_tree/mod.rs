@@ -1,14 +1,14 @@
-pub(crate) mod manager;
+use serde::Serialize;
 
 /// 钱包
 ///       根              子
 ///    pk    seed       pk  pk
 ///                      
 /// 表示钱包的目录结构，将钱包名称映射到其下的账户目录结构。
-#[derive(Debug, Default, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Clone, Serialize)]
 pub struct WalletTree {
-    dir: std::path::PathBuf,
-    tree: std::collections::HashMap<String, WalletBranch>,
+    // dir: std::path::PathBuf,
+    pub tree: std::collections::HashMap<String, WalletBranch>,
 }
 
 impl WalletTree {
@@ -24,14 +24,6 @@ impl WalletTree {
         self.tree
             .get(wallet_name)
             .ok_or(anyhow::anyhow!("No wallet"))
-    }
-
-    pub(crate) fn get_root_dir(&self, wallet_name: &str) -> std::path::PathBuf {
-        self.dir.join(wallet_name).join("root")
-    }
-
-    pub(crate) fn get_subs_dir(&self, wallet_name: &str) -> std::path::PathBuf {
-        self.dir.join(wallet_name).join("subs")
     }
 }
 
@@ -58,7 +50,7 @@ impl Account {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Clone, Serialize)]
 pub struct WalletBranch {
     // 根地址
     pub root_address: alloy::primitives::Address,
@@ -91,9 +83,13 @@ impl WalletBranch {
     }
 
     // 根据文件名解析并添加密钥
-    pub fn add_root_from_filename(&mut self, filename: &str) -> Result<(), anyhow::Error> {
+    pub fn add_root_from_filename(&mut self, filename: &str) -> Result<(), crate::Error> {
         if let Some(address) = crate::utils::file::extract_address_from_filename(filename) {
-            let address: alloy::primitives::Address = address.parse()?;
+            let address = address.parse::<alloy::primitives::Address>().map_err(|e| {
+                crate::Error::System(crate::SystemError::Parse(crate::ParseError::AddressError(
+                    e.into(),
+                )))
+            })?;
             self.root_address = address;
         };
         Ok(())

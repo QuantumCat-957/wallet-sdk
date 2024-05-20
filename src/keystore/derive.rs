@@ -108,7 +108,7 @@ impl super::Keystore {
             password,
             Some(&name),
         )?;
-        crate::wallet_tree::manager::WalletTreeManager::fresh()?;
+        // crate::wallet_tree::manager::WalletTreeManager::fresh()?;
 
         Ok(wallet)
     }

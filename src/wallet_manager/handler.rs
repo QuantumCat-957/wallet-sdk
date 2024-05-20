@@ -18,18 +18,13 @@ pub fn gen_phrase(lang: &str) -> Result<String, crate::Error> {
 }
 
 pub fn generate_root(
+    storage_path: std::path::PathBuf,
     lang: &str,
     phrase: &str,
     salt: &str,
-    wallet_name: &str,
     password: &str,
 ) -> Result<alloy::primitives::Address, crate::Error> {
-    // Construct the storage path based on the wallet name and derivation path
-    let storage_path = crate::keystore::Keystore::build_storage_path(wallet_name, true)
-        .map_err(|e| crate::SystemError::Service(e.to_string()))?;
-
     tracing::info!("storage_path: {storage_path:?}");
-
     // Clear any existing keystore at the storage path
     if storage_path.exists() {
         std::fs::remove_dir_all(&storage_path)
@@ -50,11 +45,11 @@ pub fn generate_root(
 }
 
 pub fn reset_root(
+    storage_path: std::path::PathBuf,
     lang: &str,
     phrase: &str,
     salt: &str,
     address: &str,
-    wallet_name: &str,
     new_password: &str,
 ) -> Result<alloy::primitives::Address, crate::Error> {
     // Parse the provided address
@@ -66,10 +61,6 @@ pub fn reset_root(
     crate::keystore::Keystore::new(lang)
         .map_err(|e| crate::SystemError::Service(e.to_string()))?
         .check_address(phrase, salt, address)
-        .map_err(|e| crate::SystemError::Service(e.to_string()))?;
-
-    // Construct the storage path based on the wallet name and derivation path
-    let storage_path = crate::keystore::Keystore::build_storage_path(wallet_name, true)
         .map_err(|e| crate::SystemError::Service(e.to_string()))?;
 
     tracing::info!("storage_path: {storage_path:?}");
@@ -95,6 +86,9 @@ pub fn reset_root(
 }
 
 pub fn set_password(
+    root_dir: std::path::PathBuf,
+    subs_dir: std::path::PathBuf,
+    wallet_tree: crate::wallet_tree::WalletTree,
     wallet_name: &str,
     address: &str,
     old_password: &str,
@@ -104,37 +98,29 @@ pub fn set_password(
     let address = address
         .parse::<alloy::primitives::Address>()
         .map_err(|e| crate::SystemError::Service(e.to_string()))?;
+
     // Set the password for the keystore associated with the specified address
-    Ok(
-        crate::keystore::Keystore::set_password(wallet_name, address, old_password, new_password)
-            .map_err(|e| crate::SystemError::Service(e.to_string()))?,
+    Ok(crate::keystore::Keystore::set_password(
+        root_dir,
+        subs_dir,
+        wallet_tree,
+        wallet_name,
+        address,
+        old_password,
+        new_password,
     )
+    .map_err(|e| crate::SystemError::Service(e.to_string()))?)
 }
 
 pub fn derive_subkey(
+    root_dir: std::path::PathBuf,
+    subs_dir: std::path::PathBuf,
+    wallet_tree: crate::wallet_tree::WalletTree,
     derivation_path: &str,
     wallet_name: &str,
     root_password: &str,
     derive_password: &str,
 ) -> Result<alloy::primitives::Address, crate::Error> {
-    // Retrieve the directory where the wallet data is stored
-    let wallet_dir = crate::wallet_tree::manager::WalletTreeManager::get_wallet_dir()
-        .map_err(|e| crate::SystemError::Service(e.to_string()))?;
-
-    // Initialize an empty WalletTree structure
-    let mut wallet_tree = crate::wallet_tree::WalletTree::default();
-
-    // Traverse the directory structure to populate the wallet tree
-    crate::wallet_tree::manager::WalletTreeManager::traverse_directory_structure(
-        &mut wallet_tree,
-        &wallet_dir,
-    )
-    .map_err(|e| crate::SystemError::Service(e.to_string()))?;
-
-    // Get the root and subs directory paths for the specified wallet
-    let root_dir = wallet_tree.get_root_dir(wallet_name);
-    let subs_dir = wallet_tree.get_subs_dir(wallet_name);
-
     // Retrieve the wallet branch for the specified wallet
     let wallet = wallet_tree
         .get_wallet_branch(wallet_name)

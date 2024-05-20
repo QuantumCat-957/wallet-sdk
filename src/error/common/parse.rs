@@ -14,6 +14,8 @@ pub enum ParseError {
     DecimalToI64Failed,
     #[error("Parse vector to array failed")]
     VecToArrayFailed,
+    #[error("Address error: {0}")]
+    AddressError(#[from] alloy::primitives::AddressError),
 }
 
 impl ParseError {
@@ -26,6 +28,7 @@ impl ParseError {
             ParseError::HttpBodyToBytesFailed => 6309,
             ParseError::DecimalToI64Failed => 6310,
             ParseError::VecToArrayFailed => 6311,
+            ParseError::AddressError(_) => 6311,
         }
     }
 }
