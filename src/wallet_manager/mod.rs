@@ -4,7 +4,7 @@ pub mod api;
 pub mod handler;
 
 pub struct WalletManager {
-    dir: std::path::PathBuf,
+    pub dir: std::path::PathBuf,
 }
 
 impl WalletManager {
