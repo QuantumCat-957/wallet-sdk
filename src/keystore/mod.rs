@@ -234,9 +234,9 @@ impl Keystore {
 
         tracing::info!("[set_password] account: {:?}", account);
 
+        tracing::info!("[set_password] 咋回事: {:?}", account);
         match &account {
             crate::wallet_tree::Account::Root(address) => {
-                tracing::info!("[set_password] 咋回事: {:?}", account);
                 let pk = Keystore::get_pk(&account, old_password, &root_dir)?;
                 let seed = Keystore::get_seed_with_password(address, old_password, &root_dir)?;
 
