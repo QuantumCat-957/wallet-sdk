@@ -413,6 +413,7 @@ impl Keystore {
         tracing::info!("[get_pk_with_password] password: {password:?}");
 
         let recovered_wallet = Wallet::decrypt_keystore(path, password)?;
+        tracing::info!("[get_pk_with_password] password: {password:?}");
 
         let key = recovered_wallet.signer().to_bytes();
         let private_key = key.to_vec();
