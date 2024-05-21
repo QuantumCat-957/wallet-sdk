@@ -140,6 +140,14 @@ where
         .chain(&keystore.crypto.ciphertext)
         .finalize();
 
+    tracing::info!(
+        "[get_seed_keystore] derived_mac: {:?}",
+        derived_mac.as_slice()
+    );
+    tracing::info!(
+        "[get_seed_keystore] keystore.crypto.mac: {:?}",
+        keystore.crypto.mac.as_slice()
+    );
     if derived_mac.as_slice() != keystore.crypto.mac.as_slice() {
         return Err(KeystoreError::MacMismatch);
     }

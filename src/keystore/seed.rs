@@ -28,6 +28,7 @@ impl super::Keystore {
         let path = dir.join(name);
         tracing::info!("[get_seed_keystore] path: {path:?}, password: {password}");
         let seed = crate::eth_keystore::decrypt_data(path, password)?;
+        tracing::info!("[get_seed_keystore] seed: {seed:?}");
         Ok(crate::wallet::SeedWallet::from_seed(seed)?)
     }
 }
