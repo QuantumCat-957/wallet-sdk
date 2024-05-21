@@ -12,6 +12,7 @@ mod wallet_tree;
 use error::{common::parse::ParseError, system::SystemError, Error};
 
 pub use wallet_manager::WalletManager;
+pub use response::Response;
 
 pub(crate) fn init_log() {
     tracing_subscriber::fmt()
