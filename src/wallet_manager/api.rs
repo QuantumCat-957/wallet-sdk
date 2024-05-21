@@ -786,12 +786,13 @@ pub(crate) mod tests {
         let storage_dir = wallet_manager.get_wallet_dir();
         let keystore_name = wallet_manager
             .generate_root(
-                lang,
-                phrase,
-                salt,
+                "english".to_string(),
+                "shaft love depth mercy defy cargo strong control eye machine night test"
+                    .to_string(),
+                "".to_string(),
                 // &storage_dir.to_string_lossy().to_string(),
-                wallet_name.clone(),
-                password.clone(),
+                "test".to_string(),
+                "passwd".to_string(),
             )
             .result
             .unwrap();
@@ -799,9 +800,9 @@ pub(crate) mod tests {
         let address = wallet_manager
             .derive_subkey(
                 "m/44'/60'/0'/0/1".to_string(),
-                wallet_name,
-                password,
-                derive_passwd,
+                "test".to_string(),
+                "passwd".to_string(),
+                "passwd".to_string(),
             )
             .result
             .unwrap();
