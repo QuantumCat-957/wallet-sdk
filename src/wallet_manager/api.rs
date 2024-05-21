@@ -710,7 +710,7 @@ pub(crate) mod tests {
         let TestData {
             wallet_manager,
             env,
-        } = setup_test_environment(None, 0, true)?;
+        } = setup_test_environment(None, 0, false)?;
         let TestEnv {
             // storage_dir,
             lang,
@@ -764,6 +764,48 @@ pub(crate) mod tests {
             address.to_string(),
             "0xA933b676bE829a8203d8AA7501BD2A3671C77587"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn test_derive_subkey2() -> Result<(), anyhow::Error> {
+        let TestData {
+            wallet_manager,
+            env,
+        } = setup_test_environment(None, 0, false)?;
+        let TestEnv {
+            // storage_dir,
+            lang,
+            phrase,
+            salt,
+            wallet_name,
+            coin_type: _,
+            account_index: _,
+            password,
+        } = env;
+        let storage_dir = wallet_manager.get_wallet_dir();
+        let keystore_name = wallet_manager
+            .generate_root(
+                lang,
+                phrase,
+                salt,
+                // &storage_dir.to_string_lossy().to_string(),
+                wallet_name.clone(),
+                password.clone(),
+            )
+            .result
+            .unwrap();
+        let derive_passwd = "passwd".to_string();
+        let address = wallet_manager
+            .derive_subkey(
+                "m/44'/60'/0'/0/1".to_string(),
+                wallet_name,
+                password,
+                derive_passwd,
+            )
+            .result
+            .unwrap();
+
         Ok(())
     }
 }

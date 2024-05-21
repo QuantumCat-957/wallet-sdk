@@ -15,7 +15,7 @@ pub use alloy::primitives::Address;
 pub use response::Response;
 pub use wallet_manager::WalletManager;
 
-pub(crate) fn init_log() {
+pub fn init_log() {
     tracing_subscriber::fmt()
         .pretty()
         .with_max_level(tracing::Level::DEBUG)
