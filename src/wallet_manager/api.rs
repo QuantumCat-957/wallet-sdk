@@ -418,6 +418,12 @@ impl super::WalletManager {
     ) -> Response<(alloy::primitives::Address, crate::wallet_tree::WalletTree)> {
         let root_dir = self.get_root_dir(&wallet_name);
         let subs_path = self.get_subs_dir(&wallet_name);
+        if !root_dir.exists() {
+            std::fs::create_dir_all(&root_dir).map_err(|e| crate::Error::System(e.into()))?;
+        }
+        if !subs_path.exists() {
+            std::fs::create_dir_all(&subs_path).map_err(|e| crate::Error::System(e.into()))?;
+        }
         let wallet_tree = self.traverse_directory_structure()?;
         let address = crate::wallet_manager::handler::derive_subkey(
             root_dir,
