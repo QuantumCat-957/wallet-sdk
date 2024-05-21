@@ -26,7 +26,7 @@ impl super::Keystore {
         let name = Self::from_address_to_name(&address, "seed");
         let dir = std::path::Path::new(dir);
         let path = dir.join(name);
-        println!("path: {path:?}, password: {password}");
+        tracing::info!("[get_seed_keystore] path: {path:?}, password: {password}");
         let seed = crate::eth_keystore::decrypt_data(path, password)?;
         Ok(crate::wallet::SeedWallet::from_seed(seed)?)
     }

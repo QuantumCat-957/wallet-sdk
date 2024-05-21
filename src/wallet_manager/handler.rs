@@ -125,10 +125,11 @@ pub fn derive_subkey(
     let wallet = wallet_tree
         .get_wallet_branch(wallet_name)
         .map_err(|e| crate::SystemError::Service(e.to_string()))?;
-
+    let root_address = wallet.root_address;
     // Get the root keystore using the root password
+    tracing::info!("[derive_subkey] root_address: {root_address:?}, root_dir: {root_dir:?}, root_password: {root_password}");
     let seed_wallet =
-        crate::keystore::Keystore::get_seed_keystore(wallet.root_address, &root_dir, root_password)
+        crate::keystore::Keystore::get_seed_keystore(root_address, &root_dir, root_password)
             .map_err(|e| crate::SystemError::Service(e.to_string()))?;
     tracing::info!("seed_wallet: {seed_wallet:#?}");
 
