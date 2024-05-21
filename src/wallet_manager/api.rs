@@ -78,6 +78,7 @@ impl super::WalletManager {
     pub fn gen_phrase(&self, lang: String) -> Result<String, crate::Error> {
         crate::wallet_manager::handler::gen_phrase(&lang)?.into()
     }
+    #[cfg(not(feature = "result"))]
     pub fn gen_phrase(&self, lang: String) -> Response<String> {
         crate::wallet_manager::handler::gen_phrase(&lang)?.into()
     }
@@ -146,6 +147,7 @@ impl super::WalletManager {
         )?
         .into()
     }
+    #[cfg(not(feature = "result"))]
     pub fn generate_root(
         &self,
         lang: String,
@@ -234,6 +236,7 @@ impl super::WalletManager {
         )?
         .into()
     }
+    #[cfg(not(feature = "result"))]
     pub fn reset_root(
         &self,
         lang: String,
@@ -320,6 +323,7 @@ impl super::WalletManager {
         )?
         .into()
     }
+    #[cfg(not(feature = "result"))]
     pub fn set_password(
         &self,
         wallet_name: String,
@@ -407,6 +411,7 @@ impl super::WalletManager {
         let wallet_tree = self.traverse_directory_structure()?;
         Ok((address, wallet_tree)).into()
     }
+    #[cfg(not(feature = "result"))]
     pub fn derive_subkey(
         &self,
         derivation_path: String,
