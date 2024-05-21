@@ -146,7 +146,7 @@ impl WalletManager {
 
 #[cfg(test)]
 mod tests {
-    use crate::wallet_manager::api::tests::{
+    use crate::wallet_manager::handler::tests::{
         print_dir_structure, setup_test_environment, TestData, TestEnv,
     };
 

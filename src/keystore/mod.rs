@@ -410,6 +410,8 @@ impl Keystore {
         let path = path.as_ref().join(filename);
 
         tracing::info!("[get_pk_with_password] path: {path:?}");
+        tracing::info!("[get_pk_with_password] password: {password:?}");
+
         let recovered_wallet = Wallet::decrypt_keystore(path, password)?;
 
         let key = recovered_wallet.signer().to_bytes();
@@ -515,7 +517,7 @@ mod test {
     use crate::{
         init_log,
         keystore::WalletWrapper,
-        wallet_manager::api::tests::{
+        wallet_manager::handler::tests::{
             print_dir_structure, setup_test_environment, TestData, TestEnv,
         },
     };
