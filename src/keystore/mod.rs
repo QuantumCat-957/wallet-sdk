@@ -409,8 +409,7 @@ impl Keystore {
 
         let path = path.as_ref().join(filename);
 
-        tracing::info!("[get_pk_with_password] path: {path:?}");
-        tracing::info!("[get_pk_with_password] password: {password:?}");
+        tracing::info!("[get_pk_with_password] path: {path:?}, password: {password:?}");
 
         let recovered_wallet = Wallet::decrypt_keystore(path, password)?;
         tracing::info!("[get_pk_with_password] password: {password:?}");
