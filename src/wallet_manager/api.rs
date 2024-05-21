@@ -74,8 +74,8 @@ impl super::WalletManager {
     ///
     /// This function does not explicitly panic. However, if the underlying implementation of
     /// `Language::from_str` or `Language::gen_phrase` panics, those panics will propagate.
-    pub fn gen_phrase(&self, lang: &str) -> Response<String> {
-        crate::wallet_manager::handler::gen_phrase(lang)?.into()
+    pub fn gen_phrase(&self, lang: String) -> Response<String> {
+        crate::wallet_manager::handler::gen_phrase(&lang)?.into()
     }
 
     /// Generates a root keystore based on the provided mnemonic phrase, salt, and password.
@@ -126,15 +126,21 @@ impl super::WalletManager {
     /// `Keystore::build_storage_path`, `fs::remove_dir_all`, or `Keystore::create_root_keystore_with_path_phrase` panic, those panics will propagate.
     pub fn generate_root(
         &self,
-        lang: &str,
-        phrase: &str,
-        salt: &str,
-        wallet_name: &str,
-        password: &str,
+        lang: String,
+        phrase: String,
+        salt: String,
+        wallet_name: String,
+        password: String,
     ) -> Response<alloy::primitives::Address> {
-        let storage_path = self.get_root_dir(wallet_name);
-        crate::wallet_manager::handler::generate_root(storage_path, lang, phrase, salt, password)?
-            .into()
+        let storage_path = self.get_root_dir(&wallet_name);
+        crate::wallet_manager::handler::generate_root(
+            storage_path,
+            &lang,
+            &phrase,
+            &salt,
+            &password,
+        )?
+        .into()
     }
 
     /// Resets the root keystore using the provided mnemonic phrase, salt, and new password.
@@ -187,21 +193,21 @@ impl super::WalletManager {
     /// `Keystore::build_storage_path`, `fs::remove_dir_all`, or `Keystore::create_root_keystore_with_path_phrase` panic, those panics will propagate.
     pub fn reset_root(
         &self,
-        lang: &str,
-        phrase: &str,
-        salt: &str,
-        address: &str,
-        wallet_name: &str,
-        new_password: &str,
+        lang: String,
+        phrase: String,
+        salt: String,
+        address: String,
+        wallet_name: String,
+        new_password: String,
     ) -> Response<alloy::primitives::Address> {
-        let storage_path = self.get_root_dir(wallet_name);
+        let storage_path = self.get_root_dir(&wallet_name);
         crate::wallet_manager::handler::reset_root(
             storage_path,
-            lang,
-            phrase,
-            salt,
-            address,
-            new_password,
+            &lang,
+            &phrase,
+            &salt,
+            &address,
+            &new_password,
         )?
         .into()
     }
@@ -315,22 +321,22 @@ impl super::WalletManager {
     /// `Keystore::get_seed_keystore`, `Keystore::derive_child_with_seed_and_chain_code_save`, or file system operations panic, those panics will propagate.
     pub fn derive_subkey(
         &self,
-        derivation_path: &str,
-        wallet_name: &str,
-        root_password: &str,
-        derive_password: &str,
+        derivation_path: String,
+        wallet_name: String,
+        root_password: String,
+        derive_password: String,
     ) -> Response<(alloy::primitives::Address, crate::wallet_tree::WalletTree)> {
-        let root_dir = self.get_root_dir(wallet_name);
-        let subs_path = self.get_subs_dir(wallet_name);
+        let root_dir = self.get_root_dir(&wallet_name);
+        let subs_path = self.get_subs_dir(&wallet_name);
         let wallet_tree = self.traverse_directory_structure()?;
         let address = crate::wallet_manager::handler::derive_subkey(
             root_dir,
             subs_path,
             wallet_tree,
-            derivation_path,
-            wallet_name,
-            root_password,
-            derive_password,
+            &derivation_path,
+            &wallet_name,
+            &root_password,
+            &derive_password,
         )?;
         let wallet_tree = self.traverse_directory_structure()?;
         Ok((address, wallet_tree)).into()
@@ -343,7 +349,6 @@ pub(crate) mod tests {
     use crate::keystore::Keystore;
     use crate::WalletManager;
 
-    use super::*;
     use anyhow::Result;
     use std::env;
     use std::fs;
@@ -462,12 +467,12 @@ pub(crate) mod tests {
 
             // 调用 generate_root 函数
             wallet_manager.generate_root(
-                &lang,
-                &phrase,
-                &salt,
+                lang,
+                phrase,
+                salt,
                 // &storage_dir.to_string_lossy().to_string(),
-                &wallet_name,
-                &password,
+                wallet_name,
+                password,
             );
         }
         Ok(())
@@ -497,12 +502,12 @@ pub(crate) mod tests {
         // 调用 generate_root 函数
         let address = wallet_manager
             .generate_root(
-                &lang,
-                &phrase,
-                &salt,
+                lang,
+                phrase,
+                salt,
                 // &storage_dir.to_string_lossy().to_string(),
-                &wallet_name,
-                &password,
+                wallet_name.clone(),
+                password,
             )
             .result
             .unwrap();
@@ -554,12 +559,12 @@ pub(crate) mod tests {
         // 先生成一个根密钥库
         let address = wallet_manager
             .generate_root(
-                &lang,
-                &phrase,
-                &salt,
+                lang.clone(),
+                phrase.clone(),
+                salt.clone(),
                 // &storage_dir.to_string_lossy().to_string(),
-                &wallet_name,
-                &password,
+                wallet_name.clone(),
+                password.clone(),
             )
             .result
             .unwrap();
@@ -635,12 +640,12 @@ pub(crate) mod tests {
 
         let keystore_name = wallet_manager
             .generate_root(
-                &lang,
-                &phrase,
-                &salt,
+                lang,
+                phrase,
+                salt,
                 // &storage_dir.to_string_lossy().to_string(),
-                &wallet_name,
-                &password,
+                wallet_name.clone(),
+                password.clone(),
             )
             .result
             .unwrap();
