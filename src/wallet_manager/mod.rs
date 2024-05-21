@@ -52,6 +52,7 @@ impl WalletManager {
         let mut wallet_tree = crate::wallet_tree::WalletTree::default();
         // wallet_tree.dir = root.to_owned();
         let root = &self.dir;
+        tracing::info!("[traverse_directory_structure] root: {root}");
         for entry in std::fs::read_dir(root).map_err(|e| crate::Error::System(e.into()))? {
             let mut wallet_branch = crate::wallet_tree::WalletBranch::default();
             tracing::info!("[traverse_directory_structure] entry: {entry:?}");
