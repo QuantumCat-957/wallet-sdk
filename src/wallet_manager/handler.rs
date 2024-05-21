@@ -11,10 +11,12 @@
 //     Ok(())
 // }
 
-pub fn gen_phrase(lang: &str) -> Result<String, crate::Error> {
+pub fn gen_phrase(lang: &str, count: usize) -> Result<String, crate::Error> {
     let lang = crate::utils::language::Language::from_str(lang)
         .map_err(|e| crate::SystemError::Service(e.to_string()))?;
-    Ok(lang.gen_phrase())
+    Ok(lang
+        .gen_phrase(count)
+        .map_err(|e| crate::SystemError::Service(e.to_string()))?)
 }
 
 pub fn generate_root(

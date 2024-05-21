@@ -521,6 +521,7 @@ mod test {
         wallet_manager::handler::tests::{
             print_dir_structure, setup_test_environment, TestData, TestEnv,
         },
+        WalletManager,
     };
 
     use super::Keystore;
@@ -578,8 +579,8 @@ mod test {
 
     #[test]
     fn test_gen_phrase() {
-        let phrase = crate::wallet_manager::handler::gen_phrase("english").unwrap();
-        tracing::info!("phrase: {}", phrase);
+        let phrase = crate::wallet_manager::handler::gen_phrase("english", 18).unwrap();
+        println!("phrase: {}", phrase);
     }
 
     #[test]

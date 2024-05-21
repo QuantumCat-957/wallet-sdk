@@ -75,12 +75,12 @@ impl super::WalletManager {
     /// This function does not explicitly panic. However, if the underlying implementation of
     /// `Language::from_str` or `Language::gen_phrase` panics, those panics will propagate.
     #[cfg(feature = "result")]
-    pub fn gen_phrase(&self, lang: String) -> Result<String, crate::Error> {
-        crate::wallet_manager::handler::gen_phrase(&lang)
+    pub fn gen_phrase(&self, lang: String, count: usize) -> Result<String, crate::Error> {
+        crate::wallet_manager::handler::gen_phrase(&lang, count)
     }
     #[cfg(not(feature = "result"))]
-    pub fn gen_phrase(&self, lang: String) -> Response<String> {
-        crate::wallet_manager::handler::gen_phrase(&lang)?.into()
+    pub fn gen_phrase(&self, lang: String, count: usize) -> Response<String> {
+        crate::wallet_manager::handler::gen_phrase(&lang, count)?.into()
     }
     /// Generates a root keystore based on the provided mnemonic phrase, salt, and password.
     ///
