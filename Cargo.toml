@@ -3,6 +3,10 @@ name = "wallet-sdk"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+result = []
+response = []
+
 [dependencies]
 anyhow = "1"
 alloy = { git = "https://github.com/alloy-rs/alloy", features = [

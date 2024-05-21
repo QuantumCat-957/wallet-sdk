@@ -74,10 +74,13 @@ impl super::WalletManager {
     ///
     /// This function does not explicitly panic. However, if the underlying implementation of
     /// `Language::from_str` or `Language::gen_phrase` panics, those panics will propagate.
+    #[cfg(feature = "result")]
+    pub fn gen_phrase(&self, lang: String) -> Result<String, crate::Error> {
+        crate::wallet_manager::handler::gen_phrase(&lang)?.into()
+    }
     pub fn gen_phrase(&self, lang: String) -> Response<String> {
         crate::wallet_manager::handler::gen_phrase(&lang)?.into()
     }
-
     /// Generates a root keystore based on the provided mnemonic phrase, salt, and password.
     ///
     /// This function creates a new root keystore using the specified mnemonic phrase, salt,
@@ -124,6 +127,25 @@ impl super::WalletManager {
     ///
     /// This function does not explicitly panic. However, if the underlying implementations of
     /// `Keystore::build_storage_path`, `fs::remove_dir_all`, or `Keystore::create_root_keystore_with_path_phrase` panic, those panics will propagate.
+    #[cfg(feature = "result")]
+    pub fn generate_root(
+        &self,
+        lang: String,
+        phrase: String,
+        salt: String,
+        wallet_name: String,
+        password: String,
+    ) -> Result<alloy::primitives::Address, crate::Error> {
+        let storage_path = self.get_root_dir(&wallet_name);
+        crate::wallet_manager::handler::generate_root(
+            storage_path,
+            &lang,
+            &phrase,
+            &salt,
+            &password,
+        )?
+        .into()
+    }
     pub fn generate_root(
         &self,
         lang: String,
@@ -191,6 +213,27 @@ impl super::WalletManager {
     ///
     /// This function does not explicitly panic. However, if the underlying implementations of
     /// `Keystore::build_storage_path`, `fs::remove_dir_all`, or `Keystore::create_root_keystore_with_path_phrase` panic, those panics will propagate.
+    #[cfg(feature = "result")]
+    pub fn reset_root(
+        &self,
+        lang: String,
+        phrase: String,
+        salt: String,
+        address: String,
+        wallet_name: String,
+        new_password: String,
+    ) -> Result<alloy::primitives::Address, crate::Error> {
+        let storage_path = self.get_root_dir(&wallet_name);
+        crate::wallet_manager::handler::reset_root(
+            storage_path,
+            &lang,
+            &phrase,
+            &salt,
+            &address,
+            &new_password,
+        )?
+        .into()
+    }
     pub fn reset_root(
         &self,
         lang: String,
@@ -255,6 +298,28 @@ impl super::WalletManager {
     ///
     /// This function does not explicitly panic. However, if the underlying implementations of
     /// `Keystore::set_password` panic, those panics will propagate.
+    #[cfg(feature = "result")]
+    pub fn set_password(
+        &self,
+        wallet_name: String,
+        address: String,
+        old_password: String,
+        new_password: String,
+    ) -> Result<(), crate::Error> {
+        let root_dir = self.get_root_dir(&wallet_name);
+        let subs_path = self.get_subs_dir(&wallet_name);
+        let wallet_tree = self.traverse_directory_structure()?;
+        crate::wallet_manager::handler::set_password(
+            root_dir,
+            subs_path,
+            wallet_tree,
+            &wallet_name,
+            &address,
+            &old_password,
+            &new_password,
+        )?
+        .into()
+    }
     pub fn set_password(
         &self,
         wallet_name: String,
@@ -319,6 +384,29 @@ impl super::WalletManager {
     ///
     /// This function does not explicitly panic. However, if the underlying implementations of
     /// `Keystore::get_seed_keystore`, `Keystore::derive_child_with_seed_and_chain_code_save`, or file system operations panic, those panics will propagate.
+    #[cfg(feature = "result")]
+    pub fn derive_subkey(
+        &self,
+        derivation_path: String,
+        wallet_name: String,
+        root_password: String,
+        derive_password: String,
+    ) -> Result<(alloy::primitives::Address, crate::wallet_tree::WalletTree), crate::Error> {
+        let root_dir = self.get_root_dir(&wallet_name);
+        let subs_path = self.get_subs_dir(&wallet_name);
+        let wallet_tree = self.traverse_directory_structure()?;
+        let address = crate::wallet_manager::handler::derive_subkey(
+            root_dir,
+            subs_path,
+            wallet_tree,
+            &derivation_path,
+            &wallet_name,
+            &root_password,
+            &derive_password,
+        )?;
+        let wallet_tree = self.traverse_directory_structure()?;
+        Ok((address, wallet_tree)).into()
+    }
     pub fn derive_subkey(
         &self,
         derivation_path: String,

@@ -9,10 +9,11 @@ mod wallet;
 mod wallet_manager;
 mod wallet_tree;
 
-use error::{common::parse::ParseError, system::SystemError, Error};
+pub use error::{common::parse::ParseError, system::SystemError, Error};
 
-pub use wallet_manager::WalletManager;
+pub use alloy::primitives::Address;
 pub use response::Response;
+pub use wallet_manager::WalletManager;
 
 pub(crate) fn init_log() {
     tracing_subscriber::fmt()
