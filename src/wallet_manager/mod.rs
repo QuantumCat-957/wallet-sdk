@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 pub mod api;
 pub mod handler;
+pub mod response_struct;
 
 #[derive(Debug, Clone)]
 pub struct WalletManager {

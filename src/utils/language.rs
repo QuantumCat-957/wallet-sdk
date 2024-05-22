@@ -71,53 +71,58 @@ impl Language {
         }
     }
 
-    pub fn gen_phrase(self, count: usize) -> Result<String, anyhow::Error> {
+    pub fn gen_phrase(self, count: usize) -> Result<Vec<String>, anyhow::Error> {
         let mut rng = rand::thread_rng();
-        Ok(match self {
-            Language::English => {
-                coins_bip39::Mnemonic::<coins_bip39::English>::new_with_count(&mut rng, count)?
+        let phrase =
+            match self {
+                Language::English => {
+                    coins_bip39::Mnemonic::<coins_bip39::English>::new_with_count(&mut rng, count)?
+                        .to_phrase()
+                }
+                Language::ChineseSimplified => coins_bip39::Mnemonic::<
+                    coins_bip39::ChineseSimplified,
+                >::new_with_count(&mut rng, count)?
+                .to_phrase(),
+                Language::ChineseTraditional => coins_bip39::Mnemonic::<
+                    coins_bip39::ChineseTraditional,
+                >::new_with_count(&mut rng, count)?
+                .to_phrase(),
+                Language::Czech => {
+                    coins_bip39::Mnemonic::<coins_bip39::Czech>::new_with_count(&mut rng, count)?
+                        .to_phrase()
+                }
+                Language::French => {
+                    coins_bip39::Mnemonic::<coins_bip39::French>::new_with_count(&mut rng, count)?
+                        .to_phrase()
+                }
+                Language::Italian => {
+                    coins_bip39::Mnemonic::<coins_bip39::Italian>::new_with_count(&mut rng, count)?
+                        .to_phrase()
+                }
+                Language::Japanese => {
+                    coins_bip39::Mnemonic::<coins_bip39::Japanese>::new_with_count(&mut rng, count)?
+                        .to_phrase()
+                }
+                Language::Korean => {
+                    coins_bip39::Mnemonic::<coins_bip39::Korean>::new_with_count(&mut rng, count)?
+                        .to_phrase()
+                }
+                Language::Portuguese => {
+                    coins_bip39::Mnemonic::<coins_bip39::Portuguese>::new_with_count(
+                        &mut rng, count,
+                    )?
                     .to_phrase()
-            }
-            Language::ChineseSimplified => {
-                coins_bip39::Mnemonic::<coins_bip39::ChineseSimplified>::new_with_count(
-                    &mut rng, count,
-                )?
-                .to_phrase()
-            }
-            Language::ChineseTraditional => {
-                coins_bip39::Mnemonic::<coins_bip39::ChineseTraditional>::new_with_count(
-                    &mut rng, count,
-                )?
-                .to_phrase()
-            }
-            Language::Czech => {
-                coins_bip39::Mnemonic::<coins_bip39::Czech>::new_with_count(&mut rng, count)?
-                    .to_phrase()
-            }
-            Language::French => {
-                coins_bip39::Mnemonic::<coins_bip39::French>::new_with_count(&mut rng, count)?
-                    .to_phrase()
-            }
-            Language::Italian => {
-                coins_bip39::Mnemonic::<coins_bip39::Italian>::new_with_count(&mut rng, count)?
-                    .to_phrase()
-            }
-            Language::Japanese => {
-                coins_bip39::Mnemonic::<coins_bip39::Japanese>::new_with_count(&mut rng, count)?
-                    .to_phrase()
-            }
-            Language::Korean => {
-                coins_bip39::Mnemonic::<coins_bip39::Korean>::new_with_count(&mut rng, count)?
-                    .to_phrase()
-            }
-            Language::Portuguese => {
-                coins_bip39::Mnemonic::<coins_bip39::Portuguese>::new_with_count(&mut rng, count)?
-                    .to_phrase()
-            }
-            Language::Spanish => {
-                coins_bip39::Mnemonic::<coins_bip39::Spanish>::new_with_count(&mut rng, count)?
-                    .to_phrase()
-            }
-        })
+                }
+                Language::Spanish => {
+                    coins_bip39::Mnemonic::<coins_bip39::Spanish>::new_with_count(&mut rng, count)?
+                        .to_phrase()
+                }
+            };
+        let words = phrase
+            .split(' ')
+            .into_iter()
+            .map(|word| word.to_string())
+            .collect();
+        Ok(words)
     }
 }
