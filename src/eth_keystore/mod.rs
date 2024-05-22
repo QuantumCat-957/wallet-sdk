@@ -127,7 +127,9 @@ where
             salt,
         } => {
             let mut key = vec![0u8; dklen as usize];
-            let log_n = (n as f32).log2() as u8;
+            let log_n = (n as f32).log2();
+            tracing::info!("[decrypt_data] log_n: {log_n}");
+            let log_n = log_n as u8;
             tracing::info!("[decrypt_data] n: {n}, log_n: {log_n}");
             let scrypt_params = ScryptParams::new(log_n, r, p)?;
             tracing::info!("[decrypt_data] scrypt_params: {scrypt_params:?}");

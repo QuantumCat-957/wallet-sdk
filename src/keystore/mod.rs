@@ -579,7 +579,7 @@ mod test {
 
     #[test]
     fn test_gen_phrase() {
-        let phrase = crate::wallet_manager::handler::gen_phrase("english", 18).unwrap();
+        let phrase = crate::wallet_manager::handler::gen_phrase("english", 12).unwrap();
         println!("phrase: {}", phrase);
     }
 
