@@ -10,6 +10,7 @@ use digest::{Digest, Update};
 use hmac::Hmac;
 use pbkdf2::pbkdf2;
 use rand::{CryptoRng, Rng};
+use rust_decimal::prelude::*;
 use scrypt::{scrypt, Params as ScryptParams};
 use sha2::Sha256;
 use sha3::Keccak256;
@@ -127,9 +128,14 @@ where
             salt,
         } => {
             let mut key = vec![0u8; dklen as usize];
-            let log_n = (n as f32).log2();
-            tracing::info!("[decrypt_data] log_n: {log_n}");
-            let log_n = log_n as u8;
+            // let log_n = (n as f32).log2();
+            let n_decimal = rust_decimal::Decimal::from(n);
+            let log2_decomal = n_decimal.log10() / Decimal::from(2).log10();
+
+            let log_n = log2_decomal.to_u8().unwrap();
+            // let log_n = (n as f32).log2();
+            // tracing::info!("[decrypt_data] log_n: {log_n}");
+            // let log_n = log_n as u8;
             tracing::info!("[decrypt_data] n: {n}, log_n: {log_n}");
             let scrypt_params = ScryptParams::new(log_n, r, p)?;
             tracing::info!("[decrypt_data] scrypt_params: {scrypt_params:?}");
@@ -357,5 +363,16 @@ mod test {
         // let private_key = alloy::hex::encode(private_key);
         // let data = alloy::hex::encode(&data);
         tracing::info!("data: {data}");
+    }
+
+    #[test]
+    fn test_log_n() {
+        let n = 8192;
+        let n_decimal = rust_decimal::Decimal::from(n);
+        let log2_decomal = n_decimal.log10() / Decimal::from(2).log10();
+
+        let log_n = log2_decomal.to_u8().unwrap();
+
+        println!("log_n: {log_n}");
     }
 }

@@ -58,3 +58,5 @@ percent-encoding = "2.3.1"
 # log
 tracing = "0.1.31"
 tracing-subscriber = { version = "0.3" }
+
+rust_decimal = {version = "1.35.0", features = ["maths"]}
