@@ -31,7 +31,7 @@ pub fn generate_root(
     phrase: &str,
     salt: &str,
     password: &str,
-) -> Result<alloy::primitives::Address, crate::Error> {
+) -> Result<super::response_struct::GenerateRootRes, crate::Error> {
     tracing::info!("storage_path: {storage_path:?}");
     // Clear any existing keystore at the storage path
     if storage_path.exists() {
@@ -50,10 +50,11 @@ pub fn generate_root(
         password,
     )
     .map_err(|e| crate::SystemError::Service(e.to_string()))?;
-
-    Ok(keystore
+    let address = keystore
         .get_address()
-        .map_err(|e| crate::SystemError::Service(e.to_string()))?)
+        .map_err(|e| crate::SystemError::Service(e.to_string()))?;
+
+    Ok(crate::wallet_manager::response_struct::GenerateRootRes { address })
 }
 
 pub fn reset_root(
@@ -63,7 +64,7 @@ pub fn reset_root(
     salt: &str,
     address: &str,
     new_password: &str,
-) -> Result<alloy::primitives::Address, crate::Error> {
+) -> Result<super::response_struct::ResetRootRes, crate::Error> {
     // Parse the provided address
     let address = address
         .parse::<alloy::primitives::Address>()
@@ -94,9 +95,11 @@ pub fn reset_root(
     .map_err(|e| crate::SystemError::Service(e.to_string()))?;
 
     // Return the address of the newly created keystore
-    Ok(wallet
+    let address = wallet
         .get_address()
-        .map_err(|e| crate::SystemError::Service(e.to_string()))?)
+        .map_err(|e| crate::SystemError::Service(e.to_string()))?;
+
+    Ok(crate::wallet_manager::response_struct::ResetRootRes { address })
 }
 
 pub fn set_password(
@@ -322,7 +325,7 @@ pub(crate) mod tests {
             )
             .result
             .unwrap();
-        tracing::info!("Generated address: {}", address);
+        tracing::info!("Generated address: {}", address.address);
 
         // 构建预期路径
         let expected_path = wallet_manager.get_root_dir(&wallet_name);
@@ -333,7 +336,7 @@ pub(crate) mod tests {
         assert!(expected_path.is_dir());
 
         // 确认keystore文件存在
-        let name = Keystore::from_address_to_name(&address, "pk");
+        let name = Keystore::from_address_to_name(&address.address, "pk");
         let keystore_file = expected_path.join(name);
         assert!(keystore_file.exists());
         assert!(keystore_file.is_file());
@@ -377,9 +380,9 @@ pub(crate) mod tests {
             )
             .result
             .unwrap();
-        tracing::info!("Generated keystore_name for reset: {}", address);
+        tracing::info!("Generated keystore_name for reset: {}", address.address);
         let root_path = wallet_manager.get_root_dir(&wallet_name);
-        let name = Keystore::from_address_to_name(&address, "pk");
+        let name = Keystore::from_address_to_name(&address.address, "pk");
         let storage_path = root_path.join(&name);
 
         let root_wallet = Keystore::open_with_password(&password, &storage_path).unwrap();
@@ -397,8 +400,8 @@ pub(crate) mod tests {
             // &storage_dir.to_string_lossy().to_string(),
             new_password,
         )?;
-        tracing::info!("New generated address: {}", new_address);
-        assert_eq!(address, new_address);
+        tracing::info!("New generated address: {}", new_address.address);
+        assert_eq!(address, new_address.address);
 
         // 构建预期路径
         let expected_path = root_path;
@@ -419,7 +422,7 @@ pub(crate) mod tests {
 
         // 使用新密码打开keystore文件
         let new_root_wallet = Keystore::open_with_password(new_password, &keystore_file)?;
-        assert_eq!(new_root_wallet.address(), new_address);
+        assert_eq!(new_root_wallet.address(), new_address.address);
 
         Ok(())
     }
@@ -457,7 +460,7 @@ pub(crate) mod tests {
             .result
             .unwrap();
 
-        tracing::info!("keystore_name: {keystore_name}");
+        tracing::info!("keystore_name: {:?}", keystore_name.address);
         // 执行目录结构遍历
         print_dir_structure(&storage_dir, 0);
 

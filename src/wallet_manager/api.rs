@@ -108,7 +108,7 @@ impl super::WalletManager {
         salt: String,
         wallet_name: String,
         password: String,
-    ) -> Result<alloy::primitives::Address, crate::Error> {
+    ) -> Result<super::response_struct::GenerateRootRes, crate::Error> {
         let storage_path = self.get_root_dir(&wallet_name);
         crate::wallet_manager::handler::generate_root(
             storage_path,
@@ -126,7 +126,7 @@ impl super::WalletManager {
         salt: String,
         wallet_name: String,
         password: String,
-    ) -> Response<alloy::primitives::Address> {
+    ) -> Response<super::response_struct::GenerateRootRes> {
         let storage_path = self.get_root_dir(&wallet_name);
         crate::wallet_manager::handler::generate_root(
             storage_path,
@@ -195,7 +195,7 @@ impl super::WalletManager {
         address: String,
         wallet_name: String,
         new_password: String,
-    ) -> Result<alloy::primitives::Address, crate::Error> {
+    ) -> Result<super::response_struct::ResetRootRes, crate::Error> {
         let storage_path = self.get_root_dir(&wallet_name);
         crate::wallet_manager::handler::reset_root(
             storage_path,
@@ -215,7 +215,7 @@ impl super::WalletManager {
         address: String,
         wallet_name: String,
         new_password: String,
-    ) -> Response<alloy::primitives::Address> {
+    ) -> Response<super::response_struct::ResetRootRes> {
         let storage_path = self.get_root_dir(&wallet_name);
         crate::wallet_manager::handler::reset_root(
             storage_path,
@@ -364,7 +364,7 @@ impl super::WalletManager {
         wallet_name: String,
         root_password: String,
         derive_password: String,
-    ) -> Result<(alloy::primitives::Address, crate::wallet_tree::WalletTree), crate::Error> {
+    ) -> Result<super::response_struct::DeriveSubkeyRes, crate::Error> {
         let root_dir = self.get_root_dir(&wallet_name);
         let subs_path = self.get_subs_dir(&wallet_name);
         let wallet_tree = self.traverse_directory_structure()?;
@@ -387,7 +387,7 @@ impl super::WalletManager {
         wallet_name: String,
         root_password: String,
         derive_password: String,
-    ) -> Response<(alloy::primitives::Address, crate::wallet_tree::WalletTree)> {
+    ) -> Response<super::response_struct::DeriveSubkeyRes> {
         let root_dir = self.get_root_dir(&wallet_name);
         let subs_path = self.get_subs_dir(&wallet_name);
         if !root_dir.exists() {
@@ -407,7 +407,12 @@ impl super::WalletManager {
             &derive_password,
         )?;
         let wallet_tree = self.traverse_directory_structure()?;
-        Ok((address, wallet_tree)).into()
+
+        Ok(super::response_struct::DeriveSubkeyRes {
+            address,
+            wallet_tree,
+        })
+        .into()
     }
 }
 
