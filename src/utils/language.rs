@@ -44,10 +44,54 @@ pub enum WordlistWrapper {
     Spanish(coins_bip39::Spanish),
 }
 
+pub enum QueryMode {
+    StartsWith,
+    Contains,
+}
+
+impl QueryMode {
+    pub fn from_u8(mode: u8) -> Result<Self, anyhow::Error> {
+        Ok(match mode {
+            1 => QueryMode::StartsWith,
+            2 => QueryMode::Contains,
+            _ => return Err(anyhow::anyhow!("Unknown lang")),
+        })
+    }
+}
+
 impl WordlistWrapper {
     pub fn new(lang: &str) -> Result<WordlistWrapper, anyhow::Error> {
         let language = Language::from_str(lang)?;
         Ok(language.to_wordlist_wrapper())
+    }
+
+    pub fn get_all(self) -> &'static [&'static str] {
+        use coins_bip39::Wordlist as _;
+        match self {
+            WordlistWrapper::English(_) => coins_bip39::English::get_all(),
+            WordlistWrapper::ChineseSimplified(_) => coins_bip39::ChineseSimplified::get_all(),
+            WordlistWrapper::ChineseTraditional(_) => coins_bip39::ChineseTraditional::get_all(),
+            WordlistWrapper::Czech(_) => coins_bip39::Czech::get_all(),
+            WordlistWrapper::French(_) => coins_bip39::French::get_all(),
+            WordlistWrapper::Italian(_) => coins_bip39::Italian::get_all(),
+            WordlistWrapper::Japanese(_) => coins_bip39::Japanese::get_all(),
+            WordlistWrapper::Korean(_) => coins_bip39::Korean::get_all(),
+            WordlistWrapper::Portuguese(_) => coins_bip39::Portuguese::get_all(),
+            WordlistWrapper::Spanish(_) => coins_bip39::Spanish::get_all(),
+        }
+    }
+
+    pub fn query_phrase(self, keyword: &str, mode: QueryMode) -> Vec<String> {
+        let all_words = self.get_all();
+        let keyword = keyword.to_lowercase();
+        all_words
+            .iter()
+            .filter(|word| match mode {
+                QueryMode::StartsWith => word.to_lowercase().starts_with(&keyword),
+                QueryMode::Contains => word.to_lowercase().contains(&keyword),
+            })
+            .map(|word| word.to_string())
+            .collect()
     }
 }
 

@@ -54,6 +54,41 @@ impl super::WalletManager {
     ) -> Response<super::response_struct::GeneratePhraseRes> {
         crate::wallet_manager::handler::generate_phrase(&lang, count)?.into()
     }
+
+    /// 查询助记词短语。
+    ///
+    /// # 参数
+    ///
+    /// * `lang` - 指定语言的字符串。
+    /// * `keyword` - 要查询的关键字字符串。
+    /// * `mode` - 查询模式，0表示只匹配以关键字开头的短语，1表示匹配包含关键字的短语。
+    ///
+    /// # 返回
+    ///
+    /// 返回包含查询结果的响应结构体。
+    ///
+    /// # 错误
+    ///
+    /// 如果查询过程中出现任何错误，则返回相应的错误响应。
+    #[cfg(feature = "result")]
+    pub fn query_phrases(
+        &self,
+        lang: String,
+        keyword: String,
+        mode: u8,
+    ) -> Result<super::response_struct::QueryPhraseRes, crate::Error> {
+        crate::wallet_manager::handler::query_phrases(&lang, &keyword, mode)
+    }
+    #[cfg(not(feature = "result"))]
+    pub fn query_phrases(
+        &self,
+        lang: String,
+        keyword: String,
+        mode: u8,
+    ) -> Response<super::response_struct::QueryPhraseRes> {
+        crate::wallet_manager::handler::query_phrases(&lang, &keyword, mode)?.into()
+    }
+
     /// Generates a root keystore based on the provided mnemonic phrase, salt, and password.
     ///
     /// This function creates a new root keystore using the specified mnemonic phrase, salt,

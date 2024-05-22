@@ -366,7 +366,7 @@ mod test {
     #[test]
     fn test_gen_phrase() {
         let phrase = crate::wallet_manager::handler::generate_phrase("english", 12).unwrap();
-        println!("phrase: {}", phrase);
+        println!("phrase: {:?}", phrase.phrases);
     }
 
     #[test]

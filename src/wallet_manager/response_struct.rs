@@ -4,6 +4,11 @@ pub struct GeneratePhraseRes {
 }
 
 #[derive(Debug, serde::Serialize)]
+pub struct QueryPhraseRes {
+    pub phrases: Vec<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
 pub struct GenerateRootRes {
     pub address: alloy::primitives::Address,
 }

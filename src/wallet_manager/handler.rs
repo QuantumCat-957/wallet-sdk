@@ -25,6 +25,21 @@ pub fn generate_phrase(
     Ok(super::response_struct::GeneratePhraseRes { phrases })
 }
 
+pub fn query_phrases(
+    lang: &str,
+    keyword: &str,
+    mode: u8,
+) -> Result<super::response_struct::QueryPhraseRes, crate::Error> {
+    let wordlist_wrapper = crate::utils::language::WordlistWrapper::new(lang)
+        .map_err(|e| crate::SystemError::Service(e.to_string()))?;
+    let mode = crate::utils::language::QueryMode::from_u8(mode)
+        .map_err(|e| crate::SystemError::Service(e.to_string()))?;
+
+    let phrases = wordlist_wrapper.query_phrase(keyword, mode);
+
+    Ok(super::response_struct::QueryPhraseRes { phrases })
+}
+
 pub fn generate_root(
     storage_path: std::path::PathBuf,
     lang: &str,
@@ -172,6 +187,7 @@ pub(crate) mod tests {
     use crate::WalletManager;
 
     use anyhow::Result;
+    use coins_bip39::English;
     use std::env;
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -291,6 +307,24 @@ pub(crate) mod tests {
                 password,
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn query_phrase() -> Result<()> {
+        let lang = "english";
+        let keyword = "ap";
+        let mode = crate::utils::language::QueryMode::StartsWith;
+        // 调用被测函数
+        let result =
+            crate::utils::language::WordlistWrapper::new(&lang)?.query_phrase(keyword, mode);
+        println!("StartsWith result: {result:?}");
+
+        let mode = crate::utils::language::QueryMode::Contains;
+        // 调用被测函数
+        let result =
+            crate::utils::language::WordlistWrapper::new(&lang)?.query_phrase(keyword, mode);
+        println!("Contains result: {result:?}");
         Ok(())
     }
 
