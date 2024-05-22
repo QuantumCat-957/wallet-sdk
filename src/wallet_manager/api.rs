@@ -1,42 +1,6 @@
 use crate::response::Response;
 
 impl super::WalletManager {
-    /// Initializes the global wallet tree resource.
-    ///
-    /// This function sets up the global wallet tree by traversing the directory structure
-    /// specified by the given root path. It ensures that the wallet tree is initialized
-    /// only once. If the wallet tree has already been initialized, subsequent calls to this
-    /// function will have no effect.
-    ///
-    /// # Arguments
-    ///
-    /// * `root` - A string slice that holds the path to the root directory containing the wallet structure.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` if the wallet tree was successfully initialized.
-    /// * `Err` if there was an error during initialization.
-    ///
-    /// # Errors
-    ///
-    /// This function will return an error if there is a problem reading the directory structure,
-    /// or if any of the required files are missing or cannot be processed.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use anyhow::Error;
-    ///
-    /// fn main() -> Result<(), Error> {
-    ///     init_resource("/path/to/wallet/root")?;
-    ///     // Now the wallet tree is initialized and ready to use.
-    ///     Ok(())
-    /// }
-    /// ```
-    // pub fn init_resource(root: &str) -> Response<()> {
-    //     crate::wallet_manager::handler::init_resource(root)?.into()
-    // }
-
     /// Generates a mnemonic phrase in the specified language.
     ///
     /// This function generates a mnemonic phrase for a specified language. The language
