@@ -11,10 +11,7 @@ impl super::Keystore {
         };
 
         let pk_wallet = match wallet_wrapper {
-            crate::keystore::WalletWrapper::Root {
-                pk_wallet,
-                seed_wallet: _,
-            } => pk_wallet,
+            crate::keystore::WalletWrapper::Root { pk_wallet } => pk_wallet,
             crate::keystore::WalletWrapper::Child { pk_wallet } => pk_wallet,
         };
         let signature = pk_wallet.sign_message(message.as_bytes()).await?;

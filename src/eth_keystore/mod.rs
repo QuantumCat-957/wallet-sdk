@@ -374,5 +374,13 @@ mod test {
         let log_n = log2_decomal.to_u8().unwrap();
 
         println!("log_n: {log_n}");
+
+        let mut log_n = 0;
+        let mut value = n;
+        while value > 1 {
+            value >>= 1; // 右移一位，相当于除以2
+            log_n += 1;
+        }
+        println!("log_n: {log_n}");
     }
 }

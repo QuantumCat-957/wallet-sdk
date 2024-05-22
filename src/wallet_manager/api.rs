@@ -455,8 +455,6 @@ mod test {
             phrase,
             salt,
             wallet_name,
-            coin_type: _,
-            account_index: _,
             password,
         } = env;
         let storage_dir = wallet_manager.get_wallet_dir();
@@ -501,8 +499,6 @@ mod test {
             phrase,
             salt,
             wallet_name,
-            coin_type: _,
-            account_index: _,
             password,
         } = env;
         let storage_dir = wallet_manager.get_wallet_dir();

@@ -115,24 +115,19 @@ impl super::Keystore {
 
     // 传入助记词、盐、派生路径，由根私钥派生出子私钥，创建子Keystore，不生成keystore文件
     pub(crate) fn _derive_child_with_phrase_and_salt_no_save<W: coins_bip39::Wordlist>(
-        self,
         phrase: &str,
         salt: &str,
         chain: &str,
     ) -> Result<Self, anyhow::Error> {
-        let _pk_wallet = alloy::signers::wallet::MnemonicBuilder::<W>::default()
+        let pk_wallet = alloy::signers::wallet::MnemonicBuilder::<W>::default()
             .phrase(phrase)
             .derivation_path(chain)?
             // Use this if your mnemonic is encrypted
             .password(salt)
             .build()?;
 
-        let key = self.clone().get_private()?;
-        tracing::info!("key: {key}");
-        // self.wallet_wrapper = Some(WalletWrapper::Root {
-        //     pk_wallet,
-        //     seed_wallet,
-        // });
-        Ok(self)
+        Ok(Self {
+            wallet_wrapper: Some(crate::keystore::WalletWrapper::Root { pk_wallet }),
+        })
     }
 }

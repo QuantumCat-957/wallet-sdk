@@ -15,17 +15,17 @@ use secp256k1::Secp256k1;
 
 use crate::wallet::SeedWallet;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct Keystore {
     wallet_wrapper: Option<WalletWrapper>,
-    _wordlist: crate::utils::language::WordlistWrapper,
+    // _wordlist: crate::utils::language::WordlistWrapper,
 }
 
 #[derive(Debug, Clone)]
 enum WalletWrapper {
     Root {
         pk_wallet: Wallet<alloy::signers::k256::ecdsa::SigningKey>,
-        seed_wallet: SeedWallet,
+        // seed_wallet: SeedWallet,
     },
     Child {
         pk_wallet: Wallet<alloy::signers::k256::ecdsa::SigningKey>,
@@ -33,24 +33,6 @@ enum WalletWrapper {
 }
 
 impl Keystore {
-    pub(crate) fn new(lang: &str) -> Result<Self, anyhow::Error> {
-        let wordlist_wrapper = crate::utils::language::WordlistWrapper::new(lang);
-
-        // tracing::info!("wordlist_wrapper: {wordlist_wrapper:#?}");
-        Ok(Self {
-            wallet_wrapper: None,
-            _wordlist: wordlist_wrapper?,
-        })
-    }
-
-    // pub(crate) fn get_name(&self) -> Result<String, anyhow::Error> {
-    //     let Some(name) = &self.name else {
-    //         return Err(anyhow!("No wallet"));
-    //     };
-
-    //     Ok(name.to_string())
-    // }
-
     pub(crate) fn get_address(&self) -> Result<Address, anyhow::Error> {
         let Some(wallet) = &self.wallet_wrapper else {
             return Err(anyhow!("No wallet"));
@@ -59,7 +41,7 @@ impl Keystore {
         let pk_wallet = match wallet {
             WalletWrapper::Root {
                 pk_wallet,
-                seed_wallet: _,
+                // seed_wallet: _,
             } => pk_wallet,
             WalletWrapper::Child { pk_wallet } => pk_wallet,
         };
@@ -82,14 +64,14 @@ impl Keystore {
 
     // 传入助记词、盐，生成密钥，创建根Keystore，并且保存到文件
     pub(crate) fn create_root_keystore_with_path_phrase(
-        mut self,
+        lang: &str,
         phrase: &str,
         salt: &str,
         path: &PathBuf,
         password: &str,
     ) -> Result<Self, anyhow::Error> {
         let mut rng = rand::thread_rng();
-        let (master_key, seed) = self.phrase_to_master_key(phrase, salt)?;
+        let (master_key, seed) = Self::phrase_to_master_key(lang, phrase, salt)?;
 
         // let seed = mnemonic.to_seed(Some(salt))?;
         let seed_str = alloy::hex::encode(&seed);
@@ -128,11 +110,12 @@ impl Keystore {
         let seed_wallet = Keystore::save_seed_keystore(address, seed.as_slice(), path, password)?;
         // crate::wallet_tree::manager::WalletTreeManager::fresh()?;
 
-        self.wallet_wrapper = Some(WalletWrapper::Root {
-            pk_wallet,
-            seed_wallet,
-        });
-        Ok(self)
+        Ok(Self {
+            wallet_wrapper: Some(WalletWrapper::Root {
+                pk_wallet,
+                // seed_wallet,
+            }),
+        })
     }
 
     /// 验证助记词和盐生成的根私钥是否对应给定的地址。
@@ -171,12 +154,12 @@ impl Keystore {
     /// }
     /// ```
     pub(crate) fn check_address(
-        self,
+        lang: &str,
         phrase: &str,
         salt: &str,
         address: Address,
     ) -> Result<(), anyhow::Error> {
-        let (master_key, _) = self.phrase_to_master_key(phrase, salt)?;
+        let (master_key, _) = Self::phrase_to_master_key(lang, phrase, salt)?;
         let signingkey: &coins_bip32::ecdsa::SigningKey = master_key.as_ref();
         // let private_key = signingkey.to_bytes();
         let wallet = Wallet::from_signing_key(signingkey.to_owned());
@@ -282,7 +265,6 @@ impl Keystore {
 
     // 传入助记词、盐，生成密钥，创建根Keystore，但不生成keystore文件
     pub(crate) fn create_root_keystore_with_phrase_no_path<W: coins_bip39::Wordlist>(
-        self,
         phrase: &str,
         salt: &str,
     ) -> Result<Self, anyhow::Error> {
@@ -297,16 +279,23 @@ impl Keystore {
             .build()?;
 
         // self.pk_wallet = Some(wallet);
-        Ok(self)
+
+        Ok(Self {
+            wallet_wrapper: Some(WalletWrapper::Root {
+                pk_wallet: pk_wallet,
+                // seed_wallet: (),
+            }),
+        })
     }
 
     // 助记词->Mnemonic->root key
     pub(crate) fn phrase_to_master_key(
-        &self,
+        lang: &str,
         phrase: &str,
         password: &str,
     ) -> Result<(coins_bip32::xkeys::XPriv, Vec<u8>), anyhow::Error> {
-        Ok(match self._wordlist {
+        let wordlist_wrapper = crate::utils::language::WordlistWrapper::new(lang)?;
+        Ok(match wordlist_wrapper {
             crate::utils::language::WordlistWrapper::English(_) => {
                 let mnemonic = Mnemonic::<coins_bip39::English>::new_from_phrase(phrase)?;
                 let seed = mnemonic.to_seed(Some(password))?.to_vec();
@@ -369,7 +358,7 @@ impl Keystore {
             let pk_wallet = match wallet {
                 WalletWrapper::Root {
                     pk_wallet,
-                    seed_wallet: _,
+                    // seed_wallet: _,
                 } => pk_wallet,
                 WalletWrapper::Child { pk_wallet } => pk_wallet,
             };
@@ -473,7 +462,7 @@ impl Keystore {
         let pk_wallet = match wallet_wrapper {
             WalletWrapper::Root {
                 pk_wallet,
-                seed_wallet: _,
+                // seed_wallet: _,
             } => pk_wallet,
             WalletWrapper::Child { pk_wallet } => pk_wallet,
         };
@@ -539,8 +528,6 @@ mod test {
             phrase,
             salt,
             wallet_name,
-            coin_type: _,
-            account_index: _,
             password,
         } = &env;
 
@@ -556,8 +543,9 @@ mod test {
 
         // 创建 Keystore 对象
         tracing::info!("path: {path:?}");
-        let keystore = Keystore::new(&lang)?
-            .create_root_keystore_with_path_phrase(&phrase, &salt, &path, &password)?;
+        let keystore = Keystore::create_root_keystore_with_path_phrase(
+            &lang, &phrase, &salt, &path, &password,
+        )?;
 
         let subs_dir = wallet_manager.get_subs_dir(wallet_name);
         let derivation_path = "m/44'/60'/0'/0/1";
@@ -589,10 +577,8 @@ mod test {
         let phrase = "army van defense carry jealous true garbage claim echo media make crunch";
         let salt = "";
         let lang = "english";
-        let _res = Keystore::new(lang)
-            .unwrap()
-            .create_root_keystore_with_phrase_no_path::<English>(phrase, &salt)
-            .unwrap();
+        let _res =
+            Keystore::create_root_keystore_with_phrase_no_path::<English>(phrase, &salt).unwrap();
     }
 
     #[test]
@@ -632,7 +618,7 @@ mod test {
         let address = keystore.get_address()?;
 
         // 验证生成的地址是否与提供的地址匹配
-        Keystore::new(lang)?.check_address(phrase, salt, address)?;
+        Keystore::check_address(lang, phrase, salt, address)?;
 
         Ok(())
     }
@@ -667,8 +653,6 @@ mod test {
             phrase: _,
             salt: _,
             wallet_name,
-            coin_type: _,
-            account_index: _,
             password,
         } = env;
 
@@ -759,10 +743,9 @@ mod test {
         let phrase = "army van defense carry jealous true garbage claim echo media make crunch";
         let chain = "m/44'/60'/0'/0/1";
         let lang = "english";
-        let _res = Keystore::new(lang)
-            .unwrap()
-            ._derive_child_with_phrase_and_salt_no_save::<English>(phrase, "", chain)
-            .unwrap();
+        let _res =
+            Keystore::_derive_child_with_phrase_and_salt_no_save::<English>(phrase, "", chain)
+                .unwrap();
     }
 
     #[test]
@@ -798,7 +781,6 @@ mod test {
         let signer = alloy::signers::wallet::LocalWallet::random();
         let wallet = Keystore {
             wallet_wrapper: Some(crate::keystore::WalletWrapper::Child { pk_wallet: signer }),
-            _wordlist: crate::utils::language::WordlistWrapper::English(English),
         };
 
         let res = wallet.sign_message("asd").await.unwrap();
@@ -827,9 +809,7 @@ mod test {
 
         tracing::info!("keystore_file_path: {:?}", keystore_file_path);
         let lang = "english";
-        let res = Keystore::new(lang)
-            .unwrap()
-            .transaction("test", &keystore_file_path, rpc_url, to, value)
+        let res = Keystore::transaction("test", &keystore_file_path, rpc_url, to, value)
             .await
             .unwrap();
         tracing::info!("private_key: {:#?}", res);

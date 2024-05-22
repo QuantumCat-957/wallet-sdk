@@ -3,7 +3,6 @@ use alloy::{network::TransactionBuilder as _, providers::Provider as _};
 impl super::Keystore {
     // 传入密码、keystore文件路径，交易
     pub async fn transaction(
-        self,
         password: &str,
         path: &std::path::PathBuf,
         rpc_url: url::Url,

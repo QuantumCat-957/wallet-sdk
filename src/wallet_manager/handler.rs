@@ -36,10 +36,14 @@ pub fn generate_root(
         .map_err(|e| crate::SystemError::Service(e.to_string()))?; // Recreate the directory
 
     // Create a new root keystore
-    let keystore = crate::keystore::Keystore::new(lang)
-        .map_err(|e| crate::SystemError::Service(e.to_string()))?
-        .create_root_keystore_with_path_phrase(phrase, salt, &storage_path, password)
-        .map_err(|e| crate::SystemError::Service(e.to_string()))?;
+    let keystore = crate::keystore::Keystore::create_root_keystore_with_path_phrase(
+        lang,
+        phrase,
+        salt,
+        &storage_path,
+        password,
+    )
+    .map_err(|e| crate::SystemError::Service(e.to_string()))?;
 
     Ok(keystore
         .get_address()
@@ -60,9 +64,7 @@ pub fn reset_root(
         .map_err(|e| crate::SystemError::Service(e.to_string()))?;
 
     // Verify that the provided mnemonic phrase and salt generate the expected address
-    crate::keystore::Keystore::new(lang)
-        .map_err(|e| crate::SystemError::Service(e.to_string()))?
-        .check_address(phrase, salt, address)
+    crate::keystore::Keystore::check_address(lang, phrase, salt, address)
         .map_err(|e| crate::SystemError::Service(e.to_string()))?;
 
     tracing::info!("storage_path: {storage_path:?}");
@@ -76,10 +78,14 @@ pub fn reset_root(
         .map_err(|e| crate::SystemError::Service(e.to_string()))?; // Recreate the directory
 
     // Create a new root keystore with the new password
-    let wallet = crate::keystore::Keystore::new(lang)
-        .map_err(|e| crate::SystemError::Service(e.to_string()))?
-        .create_root_keystore_with_path_phrase(phrase, salt, &storage_path, new_password)
-        .map_err(|e| crate::SystemError::Service(e.to_string()))?;
+    let wallet = crate::keystore::Keystore::create_root_keystore_with_path_phrase(
+        lang,
+        phrase,
+        salt,
+        &storage_path,
+        new_password,
+    )
+    .map_err(|e| crate::SystemError::Service(e.to_string()))?;
 
     // Return the address of the newly created keystore
     Ok(wallet
@@ -191,8 +197,6 @@ pub(crate) mod tests {
         pub(crate) phrase: String,
         pub(crate) salt: String,
         pub(crate) wallet_name: String,
-        pub(crate) coin_type: u32,
-        pub(crate) account_index: u32,
         pub(crate) password: String,
     }
 
@@ -243,8 +247,6 @@ pub(crate) mod tests {
             phrase,
             salt,
             wallet_name,
-            coin_type,
-            account_index,
             password,
         };
         Ok(TestData {
@@ -267,8 +269,6 @@ pub(crate) mod tests {
                 phrase,
                 salt,
                 wallet_name,
-                coin_type: _,
-                account_index: _,
                 password,
             } = env;
 
@@ -301,8 +301,6 @@ pub(crate) mod tests {
             phrase,
             salt,
             wallet_name,
-            coin_type: _,
-            account_index: _,
             password,
         } = env;
 
@@ -358,8 +356,6 @@ pub(crate) mod tests {
             phrase,
             salt,
             wallet_name,
-            coin_type: _,
-            account_index: _,
             password,
         } = env;
 
@@ -434,8 +430,6 @@ pub(crate) mod tests {
             phrase,
             salt,
             wallet_name,
-            coin_type: _,
-            account_index: _,
             password,
         } = env;
         let storage_dir = wallet_manager.get_wallet_dir();
