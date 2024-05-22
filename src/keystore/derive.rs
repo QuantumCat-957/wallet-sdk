@@ -79,7 +79,7 @@ impl super::Keystore {
         alloy::signers::wallet::Wallet<alloy::signers::k256::ecdsa::SigningKey>,
         anyhow::Error,
     > {
-        let seed_wallet = crate::wallet::SeedWallet::from_seed(seed)?;
+        let seed_wallet = crate::wallet::seed_wallet::SeedWallet::from_seed(seed)?;
         let derive_key = seed_wallet.derive_path(derivation_path)?;
 
         let mut rng = rand::thread_rng();
@@ -119,7 +119,7 @@ impl super::Keystore {
         salt: &str,
         chain: &str,
     ) -> Result<Self, anyhow::Error> {
-        let pk_wallet = alloy::signers::wallet::MnemonicBuilder::<W>::default()
+        let pk_wallet = crate::wallet::pk_wallet::MnemonicBuilder::<W>::default()
             .phrase(phrase)
             .derivation_path(chain)?
             // Use this if your mnemonic is encrypted

@@ -243,25 +243,7 @@ where
     tracing::info!("[encrypt_key] apply_keystream ciphertext: {ciphertext:?}");
 
     // Calculate the MAC.
-    let mac: digest::generic_array::GenericArray<
-        u8,
-        digest::typenum::UInt<
-            digest::typenum::UInt<
-                digest::typenum::UInt<
-                    digest::typenum::UInt<
-                        digest::typenum::UInt<
-                            digest::typenum::UInt<digest::typenum::UTerm, digest::consts::B1>,
-                            digest::consts::B0,
-                        >,
-                        digest::consts::B0,
-                    >,
-                    digest::consts::B0,
-                >,
-                digest::consts::B0,
-            >,
-            digest::consts::B0,
-        >,
-    > = Keccak256::new()
+    let mac = Keccak256::new()
         .chain(&key[16..32])
         .chain(&ciphertext)
         .finalize();

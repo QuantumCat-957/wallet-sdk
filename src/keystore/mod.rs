@@ -1,19 +1,16 @@
 pub mod derive;
+pub mod pk;
 pub mod seed;
 pub mod signature;
 pub mod transaction;
 
 use std::path::{Path, PathBuf};
 
-use alloy::{
-    primitives::Address,
-    signers::wallet::{MnemonicBuilder, Wallet},
-};
+use alloy::{primitives::Address, signers::wallet::Wallet};
 use anyhow::anyhow;
-use coins_bip39::Mnemonic;
 use secp256k1::Secp256k1;
 
-use crate::wallet::SeedWallet;
+use crate::wallet::{pk_wallet::PkWallet, seed_wallet::SeedWallet};
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Keystore {
@@ -24,11 +21,11 @@ pub(crate) struct Keystore {
 #[derive(Debug, Clone)]
 enum WalletWrapper {
     Root {
-        pk_wallet: Wallet<alloy::signers::k256::ecdsa::SigningKey>,
+        pk_wallet: PkWallet<alloy::signers::k256::ecdsa::SigningKey>,
         // seed_wallet: SeedWallet,
     },
     Child {
-        pk_wallet: Wallet<alloy::signers::k256::ecdsa::SigningKey>,
+        pk_wallet: PkWallet<alloy::signers::k256::ecdsa::SigningKey>,
     },
 }
 
@@ -47,75 +44,6 @@ impl Keystore {
         };
 
         Ok(pk_wallet.address())
-    }
-
-    // 创建根Keystore，密钥随机生成，并且保存到文件
-    pub(crate) fn create_root_keystore_with_path(
-        self,
-        path: &str,
-        password: &str,
-    ) -> Result<Self, anyhow::Error> {
-        let mut rng = rand::thread_rng();
-        let (pk_wallet, _) = Wallet::new_keystore(path, &mut rng, password, None)?;
-        // self.pk_wallet = Some(wallet);
-        // self.wallet_wrapper = WalletWrapper::Root { pk_wallet, seed_wallet: () }
-        Ok(self)
-    }
-
-    // 传入助记词、盐，生成密钥，创建根Keystore，并且保存到文件
-    pub(crate) fn create_root_keystore_with_path_phrase(
-        lang: &str,
-        phrase: &str,
-        salt: &str,
-        path: &PathBuf,
-        password: &str,
-    ) -> Result<Self, anyhow::Error> {
-        let mut rng = rand::thread_rng();
-        let (master_key, seed) = Self::phrase_to_master_key(lang, phrase, salt)?;
-
-        // let seed = mnemonic.to_seed(Some(salt))?;
-        let seed_str = alloy::hex::encode(&seed);
-        tracing::info!("种子：{seed_str}");
-        // let chain = "m/44'/60'/0'/0/0";
-
-        // let master_key = master_key.derive_path(chain)?;
-
-        // let master_key = mnemonic.derive_key(chain, Some(salt))?;
-        let signingkey: &coins_bip32::ecdsa::SigningKey = master_key.as_ref();
-        let private_key = signingkey.to_bytes();
-
-        // let key: &coins_bip32::prelude::SigningKey = master_key.as_ref();
-        let key = alloy::hex::encode(private_key);
-
-        tracing::info!("master key: {:#?}", key);
-
-        // tracing::info!("十六进制主私钥: {:#?}", private_key);
-        // let signer = alloy::signers::k256::schnorr::SigningKey::from_bytes(&key.to_bytes())?;
-
-        // let address = secret_key_to_address(&signer);
-        // Ok(Wallet::<SigningKey> { signer, address, chain_id: None })
-
-        let address = alloy::signers::utils::secret_key_to_address(signingkey);
-        let name = Self::from_address_to_name(&address, "pk");
-
-        let (pk_wallet, _) = alloy::signers::wallet::Wallet::encrypt_keystore(
-            &path,
-            &mut rng,
-            private_key,
-            password,
-            Some(&name),
-        )?;
-        tracing::info!("地址：{}", address);
-
-        let seed_wallet = Keystore::save_seed_keystore(address, seed.as_slice(), path, password)?;
-        // crate::wallet_tree::manager::WalletTreeManager::fresh()?;
-
-        Ok(Self {
-            wallet_wrapper: Some(WalletWrapper::Root {
-                pk_wallet,
-                // seed_wallet,
-            }),
-        })
     }
 
     /// 验证助记词和盐生成的根私钥是否对应给定的地址。
@@ -227,7 +155,7 @@ impl Keystore {
                 let seed_filename = wallet.get_root_seed_filename();
 
                 let mut rng = rand::thread_rng();
-                let (_, _) = alloy::signers::wallet::Wallet::encrypt_keystore(
+                let (_, _) = crate::wallet::pk_wallet::PkWallet::encrypt_keystore(
                     &root_dir,
                     &mut rng,
                     pk.as_slice(),
@@ -249,7 +177,7 @@ impl Keystore {
                 let pk_filename = wallet.get_sub_pk_filename(address, &chain_code)?;
 
                 let mut rng = rand::thread_rng();
-                let (_, _) = alloy::signers::wallet::Wallet::encrypt_keystore(
+                let (_, _) = crate::wallet::pk_wallet::PkWallet::encrypt_keystore(
                     &subs_dir,
                     &mut rng,
                     pk.as_slice(),
@@ -261,94 +189,6 @@ impl Keystore {
         // crate::wallet_tree::manager::WalletTreeManager::fresh()?;
 
         Ok(())
-    }
-
-    // 传入助记词、盐，生成密钥，创建根Keystore，但不生成keystore文件
-    pub(crate) fn create_root_keystore_with_phrase_no_path<W: coins_bip39::Wordlist>(
-        phrase: &str,
-        salt: &str,
-    ) -> Result<Self, anyhow::Error> {
-        // 从助记词和盐生成种子
-        if salt.is_empty() {
-            return Err(anyhow!("salt should not be empty"));
-        }
-        let pk_wallet = MnemonicBuilder::<W>::default()
-            .phrase(phrase)
-            // Use this if your mnemonic is encrypted
-            .password(salt)
-            .build()?;
-
-        // self.pk_wallet = Some(wallet);
-
-        Ok(Self {
-            wallet_wrapper: Some(WalletWrapper::Root {
-                pk_wallet: pk_wallet,
-                // seed_wallet: (),
-            }),
-        })
-    }
-
-    // 助记词->Mnemonic->root key
-    pub(crate) fn phrase_to_master_key(
-        lang: &str,
-        phrase: &str,
-        password: &str,
-    ) -> Result<(coins_bip32::xkeys::XPriv, Vec<u8>), anyhow::Error> {
-        let wordlist_wrapper = crate::utils::language::WordlistWrapper::new(lang)?;
-        Ok(match wordlist_wrapper {
-            crate::utils::language::WordlistWrapper::English(_) => {
-                let mnemonic = Mnemonic::<coins_bip39::English>::new_from_phrase(phrase)?;
-                let seed = mnemonic.to_seed(Some(password))?.to_vec();
-                // let seed = seed;
-                (mnemonic.master_key(Some(password))?, seed)
-            }
-            crate::utils::language::WordlistWrapper::ChineseSimplified(_) => {
-                let mnemonic = Mnemonic::<coins_bip39::ChineseSimplified>::new_from_phrase(phrase)?;
-                let seed = mnemonic.to_seed(Some(password))?.to_vec();
-                (mnemonic.master_key(Some(password))?, seed)
-            }
-            crate::utils::language::WordlistWrapper::ChineseTraditional(_) => {
-                let mnemonic =
-                    Mnemonic::<coins_bip39::ChineseTraditional>::new_from_phrase(phrase)?;
-                let seed = mnemonic.to_seed(Some(password))?.to_vec();
-                (mnemonic.master_key(Some(password))?, seed)
-            }
-            crate::utils::language::WordlistWrapper::Czech(_) => {
-                let mnemonic = Mnemonic::<coins_bip39::Czech>::new_from_phrase(phrase)?;
-                let seed = mnemonic.to_seed(Some(password))?.to_vec();
-                (mnemonic.master_key(Some(password))?, seed)
-            }
-            crate::utils::language::WordlistWrapper::French(_) => {
-                let mnemonic = Mnemonic::<coins_bip39::French>::new_from_phrase(phrase)?;
-                let seed = mnemonic.to_seed(Some(password))?.to_vec();
-                (mnemonic.master_key(Some(password))?, seed)
-            }
-            crate::utils::language::WordlistWrapper::Italian(_) => {
-                let mnemonic = Mnemonic::<coins_bip39::Italian>::new_from_phrase(phrase)?;
-                let seed = mnemonic.to_seed(Some(password))?.to_vec();
-                (mnemonic.master_key(Some(password))?, seed)
-            }
-            crate::utils::language::WordlistWrapper::Japanese(_) => {
-                let mnemonic = Mnemonic::<coins_bip39::Japanese>::new_from_phrase(phrase)?;
-                let seed = mnemonic.to_seed(Some(password))?.to_vec();
-                (mnemonic.master_key(Some(password))?, seed)
-            }
-            crate::utils::language::WordlistWrapper::Korean(_) => {
-                let mnemonic = Mnemonic::<coins_bip39::English>::new_from_phrase(phrase)?;
-                let seed = mnemonic.to_seed(Some(password))?.to_vec();
-                (mnemonic.master_key(Some(password))?, seed)
-            }
-            crate::utils::language::WordlistWrapper::Portuguese(_) => {
-                let mnemonic = Mnemonic::<coins_bip39::English>::new_from_phrase(phrase)?;
-                let seed = mnemonic.to_seed(Some(password))?.to_vec();
-                (mnemonic.master_key(Some(password))?, seed)
-            }
-            crate::utils::language::WordlistWrapper::Spanish(_) => {
-                let mnemonic = Mnemonic::<coins_bip39::English>::new_from_phrase(phrase)?;
-                let seed = mnemonic.to_seed(Some(password))?.to_vec();
-                (mnemonic.master_key(Some(password))?, seed)
-            }
-        })
     }
 
     // 获取密钥
@@ -377,17 +217,6 @@ impl Keystore {
         Ok(private_key)
     }
 
-    pub(crate) fn get_seed_with_password<P: AsRef<Path>>(
-        address: &Address,
-        password: &str,
-        path: P,
-    ) -> Result<Vec<u8>, anyhow::Error> {
-        let filename = Keystore::from_address_to_name(address, "seed");
-        let path = path.as_ref().join(filename);
-        let recovered_wallet = SeedWallet::decrypt_keystore(path, password)?;
-        Ok(recovered_wallet.into_seed())
-    }
-
     // 输入密码打开钱包
     pub(crate) fn get_pk<P: AsRef<Path>>(
         account: &crate::wallet_tree::Account,
@@ -410,37 +239,6 @@ impl Keystore {
         // tracing::info!("十六进制主私钥: {:#?}", private_key);
         // let recovered_wallet = Wallet::decrypt_keystore(path, password)?;
         Ok(private_key)
-    }
-
-    /// 判断派生路径是否为根密钥路径
-    ///
-    /// # 参数
-    /// - `derivation_path`: 派生路径
-    ///
-    /// # 返回
-    /// 如果是根路径，返回 `true`，否则返回 `false`
-    fn is_root_derivation_path(derivation_path: &str) -> bool {
-        // BIP44 根路径格式: m/44'/coin_type'/account'/change/address_index
-        let root_pattern = regex::Regex::new(r"^m/44'/\d+'/\d+'/?$").unwrap();
-        root_pattern.is_match(derivation_path)
-    }
-
-    /// 根据地址和派生路径生成文件名
-    ///
-    /// # 参数
-    /// - `address`: 以太坊地址
-    /// - `derivation_path`: 派生路径
-    ///
-    /// # 返回
-    /// 返回生成的文件名
-    pub(crate) fn generate_hashed_filename(address: Address, derivation_path: &str) -> String {
-        use sha2::{Digest, Sha256};
-        // let input = format!("{}_{}", address.to_string(), derivation_path);
-        let input = format!("{}", address.to_string());
-        let mut hasher = Sha256::new();
-        hasher.update(input);
-        let result = hasher.finalize();
-        hex::encode(result)
     }
 
     // 输入密码打开钱包
@@ -778,7 +576,7 @@ mod test {
 
     #[tokio::test]
     async fn test_sign_message() {
-        let signer = alloy::signers::wallet::LocalWallet::random();
+        let signer = crate::wallet::pk_wallet::LocalWallet::random();
         let wallet = Keystore {
             wallet_wrapper: Some(crate::keystore::WalletWrapper::Child { pk_wallet: signer }),
         };
