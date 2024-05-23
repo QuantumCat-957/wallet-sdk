@@ -128,11 +128,7 @@ where
             salt,
         } => {
             let mut key = vec![0u8; dklen as usize];
-            // let log_n = (n as f32).log2();
-            let n_decimal = rust_decimal::Decimal::from(n);
-            let log2_decomal = n_decimal.log10() / Decimal::from(2).log10();
-
-            let log_n = log2_decomal.to_u8().unwrap();
+            let log_n = log2(n) as u8;
             // let log_n = (n as f32).log2();
             // tracing::info!("[decrypt_data] log_n: {log_n}");
             // let log_n = log_n as u8;
@@ -302,6 +298,31 @@ impl Aes128Ctr {
     }
 }
 
+pub(crate) fn log2(mut n: u32) -> u32 {
+    let mut result = 0;
+    if (n & 0xffff0000) != 0 {
+        result += 16;
+        n >>= 16;
+    }
+    if (n & 0x0000ff00) != 0 {
+        result += 8;
+        n >>= 8;
+    }
+    if (n & 0x000000f0) != 0 {
+        result += 4;
+        n >>= 4;
+    }
+    if (n & 0x0000000c) != 0 {
+        result += 2;
+        n >>= 2;
+    }
+    if (n & 0x00000002) != 0 {
+        result += 1;
+        n >>= 1;
+    }
+    return result;
+}
+
 #[cfg(test)]
 mod test {
 
@@ -364,5 +385,11 @@ mod test {
             log_n += 1;
         }
         println!("log_n: {log_n}");
+    }
+
+    #[test]
+    fn test_log2() {
+        let n = 8192;
+        println!("log_n: {}", log2(n));
     }
 }

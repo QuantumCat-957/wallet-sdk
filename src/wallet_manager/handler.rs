@@ -12,10 +12,10 @@
 // }
 
 pub fn generate_phrase(
-    lang: &str,
+    language_code: u8,
     count: usize,
 ) -> Result<super::response_struct::GeneratePhraseRes, crate::Error> {
-    let lang = crate::utils::language::Language::from_str(lang)
+    let lang = crate::utils::language::Language::from_u8(language_code)
         .map_err(|e| crate::SystemError::Service(e.to_string()))?;
 
     let phrases = lang
@@ -26,11 +26,11 @@ pub fn generate_phrase(
 }
 
 pub fn query_phrases(
-    lang: &str,
+    language_code: u8,
     keyword: &str,
     mode: u8,
 ) -> Result<super::response_struct::QueryPhraseRes, crate::Error> {
-    let wordlist_wrapper = crate::utils::language::WordlistWrapper::new(lang)
+    let wordlist_wrapper = crate::utils::language::WordlistWrapper::new(language_code)
         .map_err(|e| crate::SystemError::Service(e.to_string()))?;
     let mode = crate::utils::language::QueryMode::from_u8(mode)
         .map_err(|e| crate::SystemError::Service(e.to_string()))?;
@@ -42,7 +42,7 @@ pub fn query_phrases(
 
 pub fn generate_root(
     storage_path: std::path::PathBuf,
-    lang: &str,
+    language_code: u8,
     phrase: &str,
     salt: &str,
     password: &str,
@@ -58,7 +58,7 @@ pub fn generate_root(
 
     // Create a new root keystore
     let keystore = crate::keystore::Keystore::create_root_keystore_with_path_phrase(
-        lang,
+        language_code,
         phrase,
         salt,
         &storage_path,
@@ -74,7 +74,7 @@ pub fn generate_root(
 
 pub fn reset_root(
     storage_path: std::path::PathBuf,
-    lang: &str,
+    language_code: u8,
     phrase: &str,
     salt: &str,
     address: &str,
@@ -86,7 +86,7 @@ pub fn reset_root(
         .map_err(|e| crate::SystemError::Service(e.to_string()))?;
 
     // Verify that the provided mnemonic phrase and salt generate the expected address
-    crate::keystore::Keystore::check_address(lang, phrase, salt, address)
+    crate::keystore::Keystore::check_address(language_code, phrase, salt, address)
         .map_err(|e| crate::SystemError::Service(e.to_string()))?;
 
     tracing::info!("storage_path: {storage_path:?}");
@@ -101,7 +101,7 @@ pub fn reset_root(
 
     // Create a new root keystore with the new password
     let wallet = crate::keystore::Keystore::create_root_keystore_with_path_phrase(
-        lang,
+        language_code,
         phrase,
         salt,
         &storage_path,
@@ -218,7 +218,7 @@ pub(crate) mod tests {
 
     pub(crate) struct TestEnv {
         // pub(crate) storage_dir: PathBuf,
-        pub(crate) lang: String,
+        pub(crate) language_code: u8,
         pub(crate) phrase: String,
         pub(crate) salt: String,
         pub(crate) wallet_name: String,
@@ -248,7 +248,7 @@ pub(crate) mod tests {
         }
 
         // 测试参数
-        let lang = "english".to_string();
+        let language_code = 1;
         let phrase =
             "shaft love depth mercy defy cargo strong control eye machine night test".to_string();
         let salt = "".to_string();
@@ -262,13 +262,13 @@ pub(crate) mod tests {
                 .map(|name| name.to_string_lossy().to_string());
         }
         let wallet_name = wallet_name.unwrap_or("example_wallet".to_string());
-        let coin_type = 60; // 60 是以太坊的 coin_type
+
         let password = "example_password".to_string();
         tracing::info!("[setup_test_environment] storage_dir: {storage_dir:?}");
         let wallet_manager = WalletManager::new(storage_dir.to_string_lossy().to_string());
         let env = TestEnv {
             // storage_dir,
-            lang,
+            language_code,
             phrase,
             salt,
             wallet_name,
@@ -290,7 +290,7 @@ pub(crate) mod tests {
 
             let TestEnv {
                 // storage_dir,
-                lang,
+                language_code,
                 phrase,
                 salt,
                 wallet_name,
@@ -299,7 +299,7 @@ pub(crate) mod tests {
 
             // 调用 generate_root 函数
             wallet_manager.generate_root(
-                lang,
+                language_code,
                 phrase,
                 salt,
                 // &storage_dir.to_string_lossy().to_string(),
@@ -312,18 +312,18 @@ pub(crate) mod tests {
 
     #[test]
     fn query_phrase() -> Result<()> {
-        let lang = "english";
+        let language_code = 1;
         let keyword = "ap";
         let mode = crate::utils::language::QueryMode::StartsWith;
         // 调用被测函数
-        let result =
-            crate::utils::language::WordlistWrapper::new(&lang)?.query_phrase(keyword, mode);
+        let result = crate::utils::language::WordlistWrapper::new(language_code)?
+            .query_phrase(keyword, mode);
         println!("StartsWith result: {result:?}");
 
         let mode = crate::utils::language::QueryMode::Contains;
         // 调用被测函数
-        let result =
-            crate::utils::language::WordlistWrapper::new(&lang)?.query_phrase(keyword, mode);
+        let result = crate::utils::language::WordlistWrapper::new(language_code)?
+            .query_phrase(keyword, mode);
         println!("Contains result: {result:?}");
         Ok(())
     }
@@ -340,7 +340,7 @@ pub(crate) mod tests {
 
         let TestEnv {
             // storage_dir,
-            lang,
+            language_code: lang,
             phrase,
             salt,
             wallet_name,
@@ -395,7 +395,7 @@ pub(crate) mod tests {
 
         let TestEnv {
             // storage_dir,
-            lang,
+            language_code,
             phrase,
             salt,
             wallet_name,
@@ -405,7 +405,7 @@ pub(crate) mod tests {
         // 先生成一个根密钥库
         let address = wallet_manager
             .generate_root(
-                lang.clone(),
+                language_code,
                 phrase.clone(),
                 salt.clone(),
                 // &storage_dir.to_string_lossy().to_string(),
@@ -427,7 +427,7 @@ pub(crate) mod tests {
         let new_password = "new_example_password";
         let new_address = crate::wallet_manager::handler::reset_root(
             root_path.clone(),
-            &lang,
+            language_code,
             &phrase,
             &salt,
             &address.to_string(),
@@ -469,7 +469,7 @@ pub(crate) mod tests {
         } = setup_test_environment(None, 0, false)?;
         let TestEnv {
             // storage_dir,
-            lang,
+            language_code: lang,
             phrase,
             salt,
             wallet_name,

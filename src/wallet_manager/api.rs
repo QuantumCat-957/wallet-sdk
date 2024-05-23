@@ -44,15 +44,15 @@ impl super::WalletManager {
         lang: String,
         count: usize,
     ) -> Result<super::response_struct::GeneratePhraseRes, crate::Error> {
-        crate::wallet_manager::handler::generate_phrase(&lang, count)
+        crate::wallet_manager::handler::generate_phrase(language_code, count)
     }
     #[cfg(not(feature = "result"))]
     pub fn generate_phrase(
         &self,
-        lang: String,
+        language_code: u8,
         count: usize,
     ) -> Response<super::response_struct::GeneratePhraseRes> {
-        crate::wallet_manager::handler::generate_phrase(&lang, count)?.into()
+        crate::wallet_manager::handler::generate_phrase(language_code, count)?.into()
     }
 
     /// 查询助记词短语。
@@ -73,20 +73,20 @@ impl super::WalletManager {
     #[cfg(feature = "result")]
     pub fn query_phrases(
         &self,
-        lang: String,
+        language_code: u8,
         keyword: String,
         mode: u8,
     ) -> Result<super::response_struct::QueryPhraseRes, crate::Error> {
-        crate::wallet_manager::handler::query_phrases(&lang, &keyword, mode)
+        crate::wallet_manager::handler::query_phrases(language_code, &keyword, mode)
     }
     #[cfg(not(feature = "result"))]
     pub fn query_phrases(
         &self,
-        lang: String,
+        language_code: u8,
         keyword: String,
         mode: u8,
     ) -> Response<super::response_struct::QueryPhraseRes> {
-        crate::wallet_manager::handler::query_phrases(&lang, &keyword, mode)?.into()
+        crate::wallet_manager::handler::query_phrases(language_code, &keyword, mode)?.into()
     }
 
     /// Generates a root keystore based on the provided mnemonic phrase, salt, and password.
@@ -147,7 +147,7 @@ impl super::WalletManager {
         let storage_path = self.get_root_dir(&wallet_name);
         crate::wallet_manager::handler::generate_root(
             storage_path,
-            &lang,
+            language_code,
             &phrase,
             &salt,
             &password,
@@ -156,7 +156,7 @@ impl super::WalletManager {
     #[cfg(not(feature = "result"))]
     pub fn generate_root(
         &self,
-        lang: String,
+        language_code: u8,
         phrase: String,
         salt: String,
         wallet_name: String,
@@ -165,7 +165,7 @@ impl super::WalletManager {
         let storage_path = self.get_root_dir(&wallet_name);
         crate::wallet_manager::handler::generate_root(
             storage_path,
-            &lang,
+            language_code,
             &phrase,
             &salt,
             &password,
@@ -234,7 +234,7 @@ impl super::WalletManager {
         let storage_path = self.get_root_dir(&wallet_name);
         crate::wallet_manager::handler::reset_root(
             storage_path,
-            &lang,
+            language_code,
             &phrase,
             &salt,
             &address,
@@ -244,7 +244,7 @@ impl super::WalletManager {
     #[cfg(not(feature = "result"))]
     pub fn reset_root(
         &self,
-        lang: String,
+        language_code: u8,
         phrase: String,
         salt: String,
         address: String,
@@ -254,7 +254,7 @@ impl super::WalletManager {
         let storage_path = self.get_root_dir(&wallet_name);
         crate::wallet_manager::handler::reset_root(
             storage_path,
-            &lang,
+            language_code,
             &phrase,
             &salt,
             &address,
@@ -463,7 +463,7 @@ mod test {
         } = setup_test_environment(None, 0, false)?;
         let TestEnv {
             // storage_dir,
-            lang,
+            language_code,
             phrase,
             salt,
             wallet_name,
@@ -472,7 +472,7 @@ mod test {
         let storage_dir = wallet_manager.get_wallet_dir();
         let keystore_name = wallet_manager
             .generate_root(
-                "english".to_string(),
+                1,
                 "shaft love depth mercy defy cargo strong control eye machine night test"
                     .to_string(),
                 "".to_string(),
@@ -485,7 +485,7 @@ mod test {
         let new_passwd = "new_passwd".to_string();
         let address = wallet_manager
             .reset_root(
-                "english".to_string(),
+                1,
                 "shaft love depth mercy defy cargo strong control eye machine night test"
                     .to_string(),
                 "".to_string(),
@@ -507,7 +507,7 @@ mod test {
         } = setup_test_environment(None, 0, false)?;
         let TestEnv {
             // storage_dir,
-            lang,
+            language_code: lang,
             phrase,
             salt,
             wallet_name,
@@ -516,7 +516,7 @@ mod test {
         let storage_dir = wallet_manager.get_wallet_dir();
         let keystore_name = wallet_manager
             .generate_root(
-                "english".to_string(),
+                1,
                 "shaft love depth mercy defy cargo strong control eye machine night test"
                     .to_string(),
                 "".to_string(),

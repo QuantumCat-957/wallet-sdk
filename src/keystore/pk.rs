@@ -19,14 +19,14 @@ impl Keystore {
 
     // 传入助记词、盐，生成密钥，创建根Keystore，并且保存到文件
     pub(crate) fn create_root_keystore_with_path_phrase(
-        lang: &str,
+        language_code: u8,
         phrase: &str,
         salt: &str,
         path: &std::path::PathBuf,
         password: &str,
     ) -> Result<Self, anyhow::Error> {
         let mut rng = rand::thread_rng();
-        let (master_key, seed) = Self::phrase_to_master_key(lang, phrase, salt)?;
+        let (master_key, seed) = Self::phrase_to_master_key(language_code, phrase, salt)?;
 
         // let seed = mnemonic.to_seed(Some(salt))?;
         let seed_str = alloy::hex::encode(&seed);
@@ -100,11 +100,11 @@ impl Keystore {
 
     // 助记词->Mnemonic->root key
     pub(crate) fn phrase_to_master_key(
-        lang: &str,
+        language_code: u8,
         phrase: &str,
         password: &str,
     ) -> Result<(coins_bip32::xkeys::XPriv, Vec<u8>), anyhow::Error> {
-        let wordlist_wrapper = crate::utils::language::WordlistWrapper::new(lang)?;
+        let wordlist_wrapper = crate::utils::language::WordlistWrapper::new(language_code)?;
         Ok(match wordlist_wrapper {
             crate::utils::language::WordlistWrapper::English(_) => {
                 let mnemonic = Mnemonic::<coins_bip39::English>::new_from_phrase(phrase)?;

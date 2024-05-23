@@ -13,18 +13,18 @@ pub enum Language {
 }
 
 impl Language {
-    pub fn from_str(lang: &str) -> Result<Self, anyhow::Error> {
-        Ok(match lang {
-            "english" => Language::English,
-            "chinese_simplified" => Language::ChineseSimplified,
-            "chinese_traditional" => Language::ChineseTraditional,
-            "czech" => Language::Czech,
-            "french" => Language::French,
-            "italian" => Language::Italian,
-            "japanese" => Language::Japanese,
-            "korean" => Language::Korean,
-            "portuguese" => Language::Portuguese,
-            "spanish" => Language::Spanish,
+    pub fn from_u8(language_code: u8) -> Result<Self, anyhow::Error> {
+        Ok(match language_code {
+            1 => Language::English,
+            2 => Language::ChineseSimplified,
+            3 => Language::ChineseTraditional,
+            4 => Language::Czech,
+            5 => Language::French,
+            6 => Language::Italian,
+            7 => Language::Japanese,
+            8 => Language::Korean,
+            9 => Language::Portuguese,
+            10 => Language::Spanish,
             _ => return Err(anyhow::anyhow!("Unknown lang")),
         })
     }
@@ -60,8 +60,8 @@ impl QueryMode {
 }
 
 impl WordlistWrapper {
-    pub fn new(lang: &str) -> Result<WordlistWrapper, anyhow::Error> {
-        let language = Language::from_str(lang)?;
+    pub fn new(lang: u8) -> Result<WordlistWrapper, anyhow::Error> {
+        let language = Language::from_u8(lang)?;
         Ok(language.to_wordlist_wrapper())
     }
 

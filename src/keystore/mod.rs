@@ -82,12 +82,12 @@ impl Keystore {
     /// }
     /// ```
     pub(crate) fn check_address(
-        lang: &str,
+        language_code: u8,
         phrase: &str,
         salt: &str,
         address: Address,
     ) -> Result<(), anyhow::Error> {
-        let (master_key, _) = Self::phrase_to_master_key(lang, phrase, salt)?;
+        let (master_key, _) = Self::phrase_to_master_key(language_code, phrase, salt)?;
         let signingkey: &coins_bip32::ecdsa::SigningKey = master_key.as_ref();
         // let private_key = signingkey.to_bytes();
         let wallet = Wallet::from_signing_key(signingkey.to_owned());
@@ -322,12 +322,12 @@ mod test {
         } = setup_test_environment(Some("测试钱包".to_string()), 0, false)?;
         let TestEnv {
             // storage_dir,
-            lang,
-            phrase,
-            salt,
-            wallet_name,
-            password,
-        } = &env;
+            language_code,
+            ref phrase,
+            ref salt,
+            ref wallet_name,
+            ref password,
+        } = env;
 
         // 构建存储路径
         let path = wallet_manager.get_root_dir(wallet_name);
@@ -342,7 +342,11 @@ mod test {
         // 创建 Keystore 对象
         tracing::info!("path: {path:?}");
         let keystore = Keystore::create_root_keystore_with_path_phrase(
-            &lang, &phrase, &salt, &path, &password,
+            language_code,
+            &phrase,
+            &salt,
+            &path,
+            &password,
         )?;
 
         let subs_dir = wallet_manager.get_subs_dir(wallet_name);
@@ -365,7 +369,7 @@ mod test {
 
     #[test]
     fn test_gen_phrase() {
-        let phrase = crate::wallet_manager::handler::generate_phrase("english", 12).unwrap();
+        let phrase = crate::wallet_manager::handler::generate_phrase(1, 12).unwrap();
         println!("phrase: {:?}", phrase.phrases);
     }
 
@@ -405,7 +409,7 @@ mod test {
     #[test]
     fn test_check_pk() -> Result<(), anyhow::Error> {
         // 测试参数
-        let lang = "english";
+        let language_code = 1;
         let phrase = "shaft love depth mercy defy cargo strong control eye machine night test";
         let salt = "";
         // let derivation_path = "m/44'/60'/0'/0/1";
@@ -416,7 +420,7 @@ mod test {
         let address = keystore.get_address()?;
 
         // 验证生成的地址是否与提供的地址匹配
-        Keystore::check_address(lang, phrase, salt, address)?;
+        Keystore::check_address(language_code, phrase, salt, address)?;
 
         Ok(())
     }
@@ -447,7 +451,7 @@ mod test {
         ) = setup_test_environment_and_create_keystore()?;
 
         let TestEnv {
-            lang: _,
+            language_code: _,
             phrase: _,
             salt: _,
             wallet_name,
