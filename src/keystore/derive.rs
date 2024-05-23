@@ -93,8 +93,8 @@ impl super::Keystore {
 
         let address = alloy::signers::utils::secret_key_to_address(&signingkey);
 
-        let name =
-            Keystore::from_address_and_derivation_path_to_name(address, derivation_path, "pk");
+        let name = crate::wallet_tree::KeystoreInfo::new(crate::utils::file::Suffix::pk(), address)
+            .from_derivation_path_to_name(derivation_path);
 
         let private_key = signingkey.to_bytes();
 

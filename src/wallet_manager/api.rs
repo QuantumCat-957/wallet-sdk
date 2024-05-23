@@ -230,15 +230,22 @@ impl super::WalletManager {
         address: String,
         wallet_name: String,
         new_password: String,
+        subkey_password: Option<String>,
     ) -> Result<super::response_struct::ResetRootRes, crate::Error> {
-        let storage_path = self.get_root_dir(&wallet_name);
+        let root_path = self.get_root_dir(&wallet_name);
+        let subs_path = self.get_subs_dir(&wallet_name);
+        let wallet_tree = self.traverse_directory_structure()?;
         crate::wallet_manager::handler::reset_root(
-            storage_path,
+            root_path,
+            subs_path,
+            wallet_tree,
+            &wallet_name,
             language_code,
             &phrase,
             &salt,
             &address,
             &new_password,
+            subkey_password,
         )
     }
     #[cfg(not(feature = "result"))]
@@ -250,15 +257,22 @@ impl super::WalletManager {
         address: String,
         wallet_name: String,
         new_password: String,
+        subkey_password: Option<String>,
     ) -> Response<super::response_struct::ResetRootRes> {
-        let storage_path = self.get_root_dir(&wallet_name);
+        let root_path = self.get_root_dir(&wallet_name);
+        let subs_path = self.get_subs_dir(&wallet_name);
+        let wallet_tree = self.traverse_directory_structure()?;
         crate::wallet_manager::handler::reset_root(
-            storage_path,
+            root_path,
+            subs_path,
+            wallet_tree,
+            &wallet_name,
             language_code,
             &phrase,
             &salt,
             &address,
             &new_password,
+            subkey_password,
         )?
         .into()
     }
@@ -492,6 +506,7 @@ mod test {
                 "0xfc6A4Ed634335cde2701553B7dbB2C362510FBd9".to_string(),
                 "example_wallet".to_string(),
                 new_passwd,
+                None,
             )
             .result
             .unwrap();

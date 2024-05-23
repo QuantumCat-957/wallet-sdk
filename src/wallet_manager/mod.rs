@@ -97,7 +97,11 @@ impl WalletManager {
                 //     seed_filename,
                 // };
 
-                wallet_branch.add_root_from_filename(&pk_filename)?;
+                wallet_branch
+                    .add_root_from_filename(&pk_filename)
+                    .map_err(|e| {
+                        crate::Error::System(crate::SystemError::Service(e.to_string()))
+                    })?;
 
                 for subs_entry in
                     std::fs::read_dir(subs_dir).map_err(|e| crate::Error::System(e.into()))?
@@ -113,7 +117,7 @@ impl WalletManager {
                             .to_string_lossy()
                             .ends_with("-pk")
                     {
-                        if let Err(e) = wallet_branch.add_key_from_filename(
+                        if let Err(e) = wallet_branch.add_subkey_from_filename(
                             &subs_path.file_name().unwrap().to_string_lossy().to_string(),
                         ) {
                             tracing::error!("[traverse_directory_structure] subs error: {e}");

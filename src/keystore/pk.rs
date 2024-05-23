@@ -51,7 +51,8 @@ impl Keystore {
         // Ok(Wallet::<SigningKey> { signer, address, chain_id: None })
 
         let address = alloy::signers::utils::secret_key_to_address(signingkey);
-        let name = Self::from_address_to_name(&address, "pk");
+        let name = crate::wallet_tree::KeystoreInfo::new(crate::utils::file::Suffix::pk(), address)
+            .from_address_to_name();
 
         let (pk_wallet, _) = crate::wallet::pk_wallet::PkWallet::encrypt_keystore(
             &path,

@@ -73,38 +73,65 @@ pub fn generate_root(
 }
 
 pub fn reset_root(
-    storage_path: std::path::PathBuf,
+    root_dir: std::path::PathBuf,
+    subs_dir: std::path::PathBuf,
+    wallet_tree: crate::wallet_tree::WalletTree,
+    wallet_name: &str,
     language_code: u8,
     phrase: &str,
     salt: &str,
-    address: &str,
+    root_address: &str,
     new_password: &str,
+    subkey_password: Option<String>,
 ) -> Result<super::response_struct::ResetRootRes, crate::Error> {
     // Parse the provided address
-    let address = address
+    let root_address = root_address
         .parse::<alloy::primitives::Address>()
         .map_err(|e| crate::SystemError::Service(e.to_string()))?;
 
     // Verify that the provided mnemonic phrase and salt generate the expected address
-    crate::keystore::Keystore::check_address(language_code, phrase, salt, address)
+    crate::keystore::Keystore::check_address(language_code, phrase, salt, root_address)
         .map_err(|e| crate::SystemError::Service(e.to_string()))?;
 
-    tracing::info!("storage_path: {storage_path:?}");
+    tracing::info!("storage_path: {root_dir:?}");
 
     // Clear any existing keystore at the storage path
-    if storage_path.exists() {
-        std::fs::remove_dir_all(&storage_path)
+    if root_dir.exists() {
+        std::fs::remove_dir_all(&root_dir)
             .map_err(|e| crate::SystemError::Service(e.to_string()))?; // Remove the directory and its contents
     }
-    std::fs::create_dir_all(&storage_path)
-        .map_err(|e| crate::SystemError::Service(e.to_string()))?; // Recreate the directory
+    std::fs::create_dir_all(&root_dir).map_err(|e| crate::SystemError::Service(e.to_string()))?; // Recreate the directory
+
+    if subs_dir.exists() {
+        if let Some(subkey_password) = subkey_password {
+            // TODO: 批量设置子密钥密码
+            // crate::keystore::Keystore::set_password(
+            //     root_dir,
+            //     subs_dir,
+            //     wallet_tree,
+            //     wallet_name,
+            //     address,
+            //     old_password,
+            //     new_password,
+            // )
+            // .map_err(|e| crate::SystemError::Service(e.to_string()))?
+        } else {
+            crate::keystore::Keystore::deprecate_subkeys(
+                wallet_tree,
+                wallet_name,
+                root_address,
+                subs_dir,
+            )
+            .map_err(|e| crate::SystemError::Service(e.to_string()))?;
+        }
+    }
 
     // Create a new root keystore with the new password
     let wallet = crate::keystore::Keystore::create_root_keystore_with_path_phrase(
         language_code,
         phrase,
         salt,
-        &storage_path,
+        &root_dir,
         new_password,
     )
     .map_err(|e| crate::SystemError::Service(e.to_string()))?;
@@ -157,11 +184,11 @@ pub fn derive_subkey(
     let wallet = wallet_tree
         .get_wallet_branch(wallet_name)
         .map_err(|e| crate::SystemError::Service(e.to_string()))?;
-    let root_address = wallet.root_address;
+    let root_info = &wallet.root_info;
     // Get the root keystore using the root password
-    tracing::info!("[derive_subkey] root_address: {root_address:?}, root_dir: {root_dir:?}, root_password: {root_password}");
+    tracing::info!("[derive_subkey] root_address: {root_info:?}, root_dir: {root_dir:?}, root_password: {root_password}");
     let seed_wallet =
-        crate::keystore::Keystore::get_seed_keystore(root_address, &root_dir, root_password)
+        crate::keystore::Keystore::get_seed_keystore(&root_info.address, &root_dir, root_password)
             .map_err(|e| crate::SystemError::Service(e.to_string()))?;
     tracing::info!("seed_wallet: {seed_wallet:#?}");
 
@@ -184,6 +211,7 @@ pub fn derive_subkey(
 pub(crate) mod tests {
     use crate::init_log;
     use crate::keystore::Keystore;
+    use crate::wallet_tree::KeystoreInfo;
     use crate::WalletManager;
 
     use anyhow::Result;
@@ -370,7 +398,8 @@ pub(crate) mod tests {
         assert!(expected_path.is_dir());
 
         // 确认keystore文件存在
-        let name = Keystore::from_address_to_name(&address.address, "pk");
+        let name = KeystoreInfo::new(crate::utils::file::Suffix::pk(), address.address)
+            .from_address_to_name();
         let keystore_file = expected_path.join(name);
         assert!(keystore_file.exists());
         assert!(keystore_file.is_file());
@@ -416,7 +445,11 @@ pub(crate) mod tests {
             .unwrap();
         tracing::info!("Generated keystore_name for reset: {}", address.address);
         let root_path = wallet_manager.get_root_dir(&wallet_name);
-        let name = Keystore::from_address_to_name(&address.address, "pk");
+        let subs_path = wallet_manager.get_subs_dir(&wallet_name);
+        let wallet_tree = wallet_manager.traverse_directory_structure()?;
+
+        let name = KeystoreInfo::new(crate::utils::file::Suffix::pk(), address.address)
+            .from_address_to_name();
         let storage_path = root_path.join(&name);
 
         let root_wallet = Keystore::open_with_password(&password, &storage_path).unwrap();
@@ -427,12 +460,16 @@ pub(crate) mod tests {
         let new_password = "new_example_password";
         let new_address = crate::wallet_manager::handler::reset_root(
             root_path.clone(),
+            subs_path.clone(),
+            wallet_tree,
+            &wallet_name,
             language_code,
             &phrase,
             &salt,
             &address.to_string(),
             // &storage_dir.to_string_lossy().to_string(),
             new_password,
+            None, // None,
         )?;
         tracing::info!("New generated address: {}", new_address.address);
         assert_eq!(address, new_address.address);
@@ -463,6 +500,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_derive_subkey() -> Result<(), anyhow::Error> {
+        init_log();
         let TestData {
             wallet_manager,
             env,
@@ -498,6 +536,15 @@ pub(crate) mod tests {
         // 执行目录结构遍历
         print_dir_structure(&storage_dir, 0);
 
+        derive_some_subkey(&wallet_manager, &wallet_name, &password)?;
+        Ok(())
+    }
+
+    fn derive_subkey(
+        wallet_manager: &WalletManager,
+        wallet_name: &str,
+        root_password: &str,
+    ) -> Result<()> {
         let derivation_path = "m/44'/60'/0'/0/1";
         // 测试派生子密钥
         let root_path = wallet_manager.get_root_dir(&wallet_name);
@@ -509,7 +556,7 @@ pub(crate) mod tests {
             wallet_tree,
             derivation_path,
             &wallet_name,
-            &password,
+            &root_password,
             "password123",
         )?;
 
@@ -518,6 +565,33 @@ pub(crate) mod tests {
             address.to_string(),
             "0xA933b676bE829a8203d8AA7501BD2A3671C77587"
         );
+
+        Ok(())
+    }
+
+    fn derive_some_subkey(
+        wallet_manager: &WalletManager,
+        wallet_name: &str,
+        root_password: &str,
+    ) -> Result<()> {
+        let derivation_path = "m/44'/60'/0'/0/";
+        for i in 1..5 {
+            let path = format!("{derivation_path}{i}");
+            // 测试派生子密钥
+            let root_path = wallet_manager.get_root_dir(&wallet_name);
+            let subs_path = wallet_manager.get_subs_dir(&wallet_name);
+            let wallet_tree = wallet_manager.traverse_directory_structure()?;
+            let address = crate::wallet_manager::handler::derive_subkey(
+                root_path,
+                subs_path,
+                wallet_tree,
+                &path,
+                &wallet_name,
+                root_password,
+                "password123",
+            )?;
+        }
+
         Ok(())
     }
 }

@@ -10,7 +10,10 @@ use alloy::{primitives::Address, signers::wallet::Wallet};
 use anyhow::anyhow;
 use secp256k1::Secp256k1;
 
-use crate::wallet::{pk_wallet::PkWallet, seed_wallet::SeedWallet};
+use crate::{
+    wallet::{pk_wallet::PkWallet, seed_wallet::SeedWallet},
+    wallet_tree::WalletBranch,
+};
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Keystore {
@@ -101,32 +104,20 @@ impl Keystore {
         Ok(())
     }
 
-    pub(crate) fn from_address_to_name(
-        address: &Address,
-        // derivation_path: &str,
-        suffix: &str,
-    ) -> String {
-        tracing::info!("from_signingkey_to_name: {:#?}", address);
-        // let hash_name = Self::generate_hashed_filename(address, derivation_path);
-        let name = format!("{}-{}", address.to_string(), suffix);
-        name
+    pub(crate) fn deprecate_subkeys(
+        mut wallet_tree: crate::wallet_tree::WalletTree,
+        wallet_name: &str,
+        root_address: Address,
+        subs_path: std::path::PathBuf,
+    ) -> Result<(), anyhow::Error> {
+        let wallet = wallet_tree.get_mut_wallet_branch(wallet_name)?;
+
+        wallet.deprecate_subkeys(&root_address, subs_path);
+        Ok(())
     }
 
-    pub(crate) fn from_address_and_derivation_path_to_name(
-        address: Address,
-        raw_derivation_path: &str,
-        suffix: &str,
-    ) -> String {
-        tracing::info!("from_signingkey_to_name: {:#?}", address);
-        // let hash_name = Self::generate_hashed_filename(address, derivation_path);
-        // let name = format!("{}-{}", address.to_string(), suffix);
-
-        let derivation_path =
-            crate::utils::derivation::derivation_path_percent_encode(raw_derivation_path);
-
-        let name = format!("{}-{}-{}", address, derivation_path, suffix);
-        name
-    }
+    // TODO: 批量设置子密钥密码
+    pub(crate) fn set_all_subs_password() {}
 
     // 设置密码
     pub(crate) fn set_password(
@@ -147,9 +138,13 @@ impl Keystore {
 
         tracing::info!("[set_password] 咋回事: {:?}", account);
         match &account {
-            crate::wallet_tree::Account::Root(address) => {
+            crate::wallet_tree::AccountInfo::Root(keystore_info) => {
                 let pk = Keystore::get_pk(&account, old_password, &root_dir)?;
-                let seed = Keystore::get_seed_with_password(address, old_password, &root_dir)?;
+                let seed = Keystore::get_seed_with_password(
+                    &keystore_info.address,
+                    old_password,
+                    &root_dir,
+                )?;
 
                 let pk_filename = wallet.get_root_pk_filename();
                 let seed_filename = wallet.get_root_seed_filename();
@@ -171,10 +166,13 @@ impl Keystore {
                     Some(&seed_filename),
                 )?;
             }
-            crate::wallet_tree::Account::Sub(address, chain_code) => {
+            crate::wallet_tree::AccountInfo::Sub(raw_derivation_path, keystore_info) => {
                 let pk = Keystore::get_pk(&account, old_password, &subs_dir)?;
 
-                let pk_filename = wallet.get_sub_pk_filename(address, &chain_code)?;
+                let pk_filename = WalletBranch::get_sub_pk_filename(
+                    &keystore_info.address,
+                    &raw_derivation_path,
+                )?;
 
                 let mut rng = rand::thread_rng();
                 let (_, _) = crate::wallet::pk_wallet::PkWallet::encrypt_keystore(
@@ -219,7 +217,7 @@ impl Keystore {
 
     // 输入密码打开钱包
     pub(crate) fn get_pk<P: AsRef<Path>>(
-        account: &crate::wallet_tree::Account,
+        account: &crate::wallet_tree::AccountInfo,
         password: &str,
         path: P,
     ) -> Result<Vec<u8>, anyhow::Error> {
@@ -308,6 +306,7 @@ mod test {
         wallet_manager::handler::tests::{
             print_dir_structure, setup_test_environment, TestData, TestEnv,
         },
+        wallet_tree::WalletBranch,
         WalletManager,
     };
 
@@ -432,7 +431,7 @@ mod test {
         let _derivation_path = "m/44'/60'/0'/0/1";
         let password = "test";
         let dir = PathBuf::new().join("");
-        let seed = Keystore::get_seed_keystore(address, &dir, password).unwrap();
+        let seed = Keystore::get_seed_keystore(&address, &dir, password).unwrap();
         let seed = hex::encode(seed.seed());
         tracing::info!("seed: {seed}");
     }
@@ -464,15 +463,14 @@ mod test {
         let wallet = wallet_tree.get_wallet_branch(&wallet_name).unwrap();
         let root_address = keystore.get_address().unwrap();
 
-        let (chain_code, sub_address) = wallet.accounts.clone().pop_first().unwrap();
+        let (raw_derivation_path, sub_info) = wallet.accounts.clone().pop_first().unwrap();
 
         let root_account = wallet.get_account_with_address(&root_address).unwrap();
-        let sub_account = wallet.get_account_with_address(&sub_address).unwrap();
+        let sub_account = wallet.get_account_with_address(&sub_info.address).unwrap();
 
         let root_pk_file = wallet.get_root_pk_filename();
-        let sub_pk_file = wallet
-            .get_sub_pk_filename(&sub_address, &chain_code)
-            .unwrap();
+        let sub_pk_file =
+            WalletBranch::get_sub_pk_filename(&sub_info.address, &raw_derivation_path).unwrap();
         tracing::info!("[test_set_password] root_pk_file: {root_pk_file}");
         tracing::info!("[test_set_password] sub_pk_file: {sub_pk_file}");
         let root_dir = wallet_manager.get_root_dir(&wallet_name);
@@ -495,7 +493,7 @@ mod test {
         let new_password = "new_password";
 
         tracing::info!("[test_set_password] root_address: {root_address:#?}");
-        tracing::info!("[test_set_password] sub_address: {sub_address:#?}");
+        tracing::info!("[test_set_password] sub_address: {sub_info:#?}");
         // 设置根密码
         wallet_manager.set_password(
             wallet_name.clone(),
@@ -507,7 +505,7 @@ mod test {
         // 设置子密码
         wallet_manager.set_password(
             wallet_name,
-            sub_address.to_string(),
+            sub_info.address.to_string(),
             password,
             new_password.to_owned(),
         );
